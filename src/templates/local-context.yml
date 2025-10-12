@@ -1,0 +1,21 @@
+meta:
+  version: 0.0.1
+  target: {{TARGET_PATH}}
+
+what: |
+  # TODO: Describe what this module does
+  # What problem does it solve?
+
+when:
+  - # TODO: When should this module be used?
+  - # TODO: Another scenario
+  - # TODO: Third condition
+
+not_when:
+  - # TODO: When should this module NOT be used?
+  - # TODO: When is a different solution better?
+  - # TODO: When will this fail or perform poorly?
+
+future:  # Optional
+  - # TODO: Planned improvements
+  - # TODO: Known limitations to address
