@@ -61,10 +61,23 @@ export class TestEnvironment {
    * Initialize a ctx project in the test environment
    * Creates ctx.config.yaml and ctx/ directories (matching real init command)
    */
-  async initProject(): Promise<void> {
-    // Create ctx.config.yaml
-    const configContent = `editor: claude-code
-version: "0.1.0"
+  async initProject(globalDir: string = 'ctx'): Promise<void> {
+    // Create ctx.config.yaml with new structure
+    const configContent = `version: "0.1.0"
+editor: claude-code
+local:
+  patterns:
+    - "**/*.ctx.md"
+    - "**/ctx.md"
+  ignore:
+    - node_modules/**
+    - dist/**
+    - build/**
+    - .git/**
+global:
+  directory: ${globalDir}
+  patterns: "**/*.md"
+  ignore: []
 `;
     await fs.writeFile(
       path.join(this.tempDir, 'ctx.config.yaml'),
@@ -72,16 +85,16 @@ version: "0.1.0"
       'utf-8'
     );
 
-    // Create ctx directory (matches real init command)
-    await fs.mkdir(path.join(this.tempDir, 'ctx'), { recursive: true });
-    await fs.mkdir(path.join(this.tempDir, 'ctx', 'templates'), { recursive: true });
+    // Create global directory (matches real init command)
+    await fs.mkdir(path.join(this.tempDir, globalDir), { recursive: true });
+    await fs.mkdir(path.join(this.tempDir, globalDir, 'templates'), { recursive: true });
 
     // Create registry files (matching registry.ts structure with meta field)
     const timestamp = new Date().toISOString();
 
     // Write YAML formatted registries with proper structure
     await fs.writeFile(
-      path.join(this.tempDir, 'ctx', 'local-context-registry.yml'),
+      path.join(this.tempDir, globalDir, 'local-context-registry.yml'),
       `meta:
   version: '1.0.0'
   last_synced: '${timestamp}'
@@ -91,11 +104,12 @@ contexts: {}
     );
 
     await fs.writeFile(
-      path.join(this.tempDir, 'ctx', 'global-context-registry.yml'),
+      path.join(this.tempDir, globalDir, 'global-context-registry.yml'),
       `meta:
   version: '1.0.0'
   last_synced: '${timestamp}'
 contexts: {}
+folders: {}
 `,
       'utf-8'
     );

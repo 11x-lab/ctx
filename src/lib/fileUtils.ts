@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { glob } from 'glob';
 
 /**
  * Check if a file or directory exists
@@ -16,8 +17,9 @@ export async function fileExists(filepath: string): Promise<boolean> {
 /**
  * Check if the project is initialized (ctx.config.yaml exists)
  */
-export async function isProjectInitialized(): Promise<boolean> {
-  const configPath = path.join(process.cwd(), 'ctx.config.yaml');
+export async function isProjectInitialized(projectRoot?: string): Promise<boolean> {
+  const root = projectRoot || process.cwd();
+  const configPath = path.join(root, 'ctx.config.yaml');
   return fileExists(configPath);
 }
 
@@ -32,23 +34,23 @@ export function getProjectRoot(): string {
 /**
  * Convert a target file path to its context file path
  * Examples:
- *   src/services/payment.ts -> src/services/payment.ctx.yml
- *   src/services/ -> src/services/ctx.yml
+ *   src/services/payment.ts -> src/services/payment.ctx.md
+ *   src/services/ -> src/services/ctx.md
  */
 export function resolveContextPath(targetPath: string): string {
   // Remove trailing slash if directory
   const normalized = targetPath.replace(/\/$/, '');
 
-  // If it's a directory (no extension), create ctx.yml
+  // If it's a directory (no extension), create ctx.md
   const ext = path.extname(normalized);
   if (!ext) {
-    return path.join(normalized, 'ctx.yml');
+    return path.join(normalized, 'ctx.md');
   }
 
-  // If it's a file, replace extension with .ctx.yml
+  // If it's a file, replace extension with .ctx.md
   const dir = path.dirname(normalized);
   const basename = path.basename(normalized, ext);
-  return path.join(dir, `${basename}.ctx.yml`);
+  return path.join(dir, `${basename}.ctx.md`);
 }
 
 /**
@@ -82,22 +84,22 @@ export async function ensureDirectory(dirPath: string): Promise<void> {
 
 /**
  * Resolve global context document path
- * Ensures path is in ctx/ directory and has .md extension
+ * Ensures path is in global directory and has .md extension
  * Examples:
- *   architecture/caching -> ctx/architecture/caching.md
- *   ctx/rules/api-design.md -> ctx/rules/api-design.md
- *   caching -> ctx/caching.md
+ *   architecture/caching, 'ctx' -> ctx/architecture/caching.md
+ *   ctx/rules/api-design.md, 'ctx' -> ctx/rules/api-design.md
+ *   caching, 'docs' -> docs/caching.md
  */
-export function resolveGlobalContextPath(targetPath: string): string {
+export function resolveGlobalContextPath(targetPath: string, globalDir: string): string {
   // Normalize path separators
   let normalized = targetPath.replace(/\\/g, '/');
 
   // Remove leading slash if present
   normalized = normalized.replace(/^\//, '');
 
-  // Add ctx/ prefix if not present
-  if (!normalized.startsWith('ctx/')) {
-    normalized = `ctx/${normalized}`;
+  // Add global directory prefix if not present
+  if (!normalized.startsWith(`${globalDir}/`)) {
+    normalized = `${globalDir}/${normalized}`;
   }
 
   // Add .md extension if not present
@@ -122,4 +124,53 @@ export function extractDocumentTitle(globalPath: string): string {
     .split(' ')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+/**
+ * Resolve target path from context file path
+ * Priority:
+ * 1. Explicit target in frontmatter (if provided)
+ * 2. Infer from filename (oauth.ctx.md -> oauth.*)
+ * 3. If ctx.md, return directory path
+ */
+export async function resolveTargetFromContext(
+  contextPath: string,
+  explicitTarget?: string
+): Promise<string> {
+  // 1. Explicit target provided
+  if (explicitTarget) {
+    return explicitTarget;
+  }
+
+  const basename = path.basename(contextPath);
+  const dirname = path.dirname(contextPath);
+
+  // 2. Folder context (ctx.md)
+  if (basename === 'ctx.md') {
+    // Return directory as target
+    return resolveAbsoluteTargetPath(dirname);
+  }
+
+  // 3. File context (oauth.ctx.md -> oauth.*)
+  // Remove .ctx.md to get base name
+  const match = basename.match(/^(.+)\.ctx\.(md|yml|yaml)$/);
+  if (!match) {
+    throw new Error(`Invalid context filename format: ${basename}`);
+  }
+
+  const baseName = match[1]; // e.g., "oauth"
+  const searchPattern = `${path.join(dirname, baseName)}.*`;
+
+  // Find matching file (exclude .ctx.* files)
+  const candidates = await glob(searchPattern, {
+    ignore: ['**/*.ctx.*'],
+  });
+
+  if (candidates.length === 0) {
+    // Target file doesn't exist yet, return best guess
+    return resolveAbsoluteTargetPath(path.join(dirname, baseName));
+  }
+
+  // Return first matching file
+  return resolveAbsoluteTargetPath(candidates[0]);
 }

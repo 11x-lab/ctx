@@ -14,6 +14,7 @@ import {
 } from '../lib/fileUtils.js';
 import { validateTarget, checkContextFileExists } from '../lib/validation.js';
 import { loadTemplate, renderTemplate, ContextType } from '../lib/templates.js';
+import { loadConfig } from '../lib/config.js';
 
 export interface CreateOptions {
   template?: string;
@@ -38,7 +39,11 @@ export async function createCommand(target: string, options: CreateOptions = {})
       process.exit(1);
     }
 
-    // 3. Determine context type and resolve paths
+    // 3. Load config
+    const projectRoot = process.cwd();
+    const config = await loadConfig(projectRoot);
+
+    // 4. Determine context type and resolve paths
     const isGlobal = options.global || false;
     const contextType: ContextType = isGlobal ? 'global' : 'local';
 
@@ -47,9 +52,9 @@ export async function createCommand(target: string, options: CreateOptions = {})
     let templateData: Record<string, string>;
 
     if (isGlobal) {
-      // Global context: resolve to ctx/ directory
-      contextPath = resolveGlobalContextPath(target);
-      absoluteContextPath = path.resolve(process.cwd(), contextPath);
+      // Global context: resolve to configured global directory
+      contextPath = resolveGlobalContextPath(target, config.global.directory);
+      absoluteContextPath = path.resolve(projectRoot, contextPath);
 
       // Extract document title from path
       const documentTitle = extractDocumentTitle(contextPath);
@@ -57,13 +62,13 @@ export async function createCommand(target: string, options: CreateOptions = {})
     } else {
       // Local context: resolve based on target file
       contextPath = resolveContextPath(target);
-      absoluteContextPath = path.resolve(process.cwd(), contextPath);
+      absoluteContextPath = path.resolve(projectRoot, contextPath);
 
       const absoluteTargetPath = resolveAbsoluteTargetPath(target);
       templateData = { targetPath: absoluteTargetPath };
     }
 
-    // 4. Check if context file already exists
+    // 5. Check if context file already exists
     const exists = await checkContextFileExists(absoluteContextPath);
     if (exists && !options.force) {
       console.log(chalk.yellow(`⚠️  Context file already exists: ${contextPath}`));
@@ -84,7 +89,7 @@ export async function createCommand(target: string, options: CreateOptions = {})
       }
     }
 
-    // 5. Check if target file exists (warning only, local contexts only)
+    // 6. Check if target file exists (warning only, local contexts only)
     if (!isGlobal) {
       const targetFilePath = path.resolve(process.cwd(), target);
       const targetExists = await fileExists(targetFilePath);
@@ -94,21 +99,21 @@ export async function createCommand(target: string, options: CreateOptions = {})
       }
     }
 
-    // 6. Load template
+    // 7. Load template
     const templateType = options.template || 'default';
     const template = await loadTemplate(contextType, templateType);
 
-    // 7. Render template with data
+    // 8. Render template with data
     const rendered = renderTemplate(template, templateData);
 
-    // 8. Ensure directory exists
+    // 9. Ensure directory exists
     const contextDir = getDirectory(absoluteContextPath);
     await ensureDirectory(contextDir);
 
-    // 9. Write context file
+    // 10. Write context file
     await fs.writeFile(absoluteContextPath, rendered, 'utf-8');
 
-    // 10. Display success message
+    // 11. Display success message
     console.log(chalk.green(`✓ Created ${contextPath}`));
     if (!isGlobal && templateData.targetPath) {
       console.log(chalk.gray(`→ Target: ${templateData.targetPath}`));

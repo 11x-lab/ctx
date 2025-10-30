@@ -1,6 +1,6 @@
 import path from 'path';
 import chalk from 'chalk';
-import { isProjectInitialized, fileExists } from '../lib/fileUtils.js';
+import { isProjectInitialized, fileExists, resolveTargetFromContext } from '../lib/fileUtils.js';
 import { scanLocalContexts, scanGlobalContexts, extractFolder } from '../lib/scanner.js';
 import { parseContextFile, validateContextFile, extractPreviewFromLocal, extractPreviewFromGlobal } from '../lib/parser.js';
 import { computeChecksum, computeFileChecksum } from '../lib/checksum.js';
@@ -11,6 +11,7 @@ import {
   writeGlobalRegistry,
 } from '../lib/registry.js';
 import { SyncOptions, LocalContextEntry, GlobalContextEntry } from '../lib/types.js';
+import { loadConfig } from '../lib/config.js';
 
 export async function syncCommand(options: SyncOptions = {}) {
   try {
@@ -76,11 +77,14 @@ export async function syncCommand(options: SyncOptions = {}) {
 }
 
 /**
- * Sync local contexts (*.ctx.yml files)
+ * Sync local contexts
  */
 async function syncLocalContexts(projectRoot: string): Promise<number> {
+  // Load config
+  const config = await loadConfig(projectRoot);
+
   // Scan for context files
-  const scannedContexts = await scanLocalContexts(projectRoot);
+  const scannedContexts = await scanLocalContexts(projectRoot, config);
 
   // Read existing registry
   const registry = await readLocalRegistry(projectRoot);
@@ -89,7 +93,7 @@ async function syncLocalContexts(projectRoot: string): Promise<number> {
   for (const scanned of scannedContexts) {
     try {
       // Parse context file
-      const contextFile = parseContextFile(scanned.content);
+      const contextFile = parseContextFile(scanned.relativePath, scanned.content);
 
       // Validate context file
       const validation = validateContextFile(contextFile);
@@ -102,8 +106,11 @@ async function syncLocalContexts(projectRoot: string): Promise<number> {
         continue; // Skip invalid context files
       }
 
-      // Get target path (absolute)
-      const targetPath = contextFile.meta.target;
+      // Resolve target path (explicit or inferred)
+      const targetPath = await resolveTargetFromContext(
+        scanned.relativePath,
+        contextFile.meta.target
+      );
 
       // Compute context file checksum
       const contextChecksum = computeChecksum(scanned.content);
@@ -150,11 +157,14 @@ async function syncLocalContexts(projectRoot: string): Promise<number> {
 }
 
 /**
- * Sync global contexts (.ctx markdown files)
+ * Sync global contexts
  */
 async function syncGlobalContexts(projectRoot: string): Promise<number> {
+  // Load config
+  const config = await loadConfig(projectRoot);
+
   // Scan for context files
-  const scannedContexts = await scanGlobalContexts(projectRoot);
+  const scannedContexts = await scanGlobalContexts(projectRoot, config);
 
   // Read existing registry
   const registry = await readGlobalRegistry(projectRoot);
@@ -185,7 +195,7 @@ async function syncGlobalContexts(projectRoot: string): Promise<number> {
       const lastModified = stats.mtime.toISOString();
 
       // Extract folder from path
-      const folder = extractFolder(scanned.relativePath);
+      const folder = extractFolder(scanned.relativePath, config.global.directory);
 
       // Create registry key: /folder/file.md or /file.md
       const filename = path.basename(scanned.relativePath);

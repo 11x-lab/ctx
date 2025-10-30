@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadConfig } from './config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,7 +20,7 @@ export interface TemplateData {
  * @param templateType - Template variant (currently only 'default' is supported)
  *
  * Template loading priority:
- * 1. Check project's ctx/templates/ (user-customized)
+ * 1. Check project's global directory templates/ (user-customized)
  * 2. Fallback to package's dist/templates/ (default)
  */
 export async function loadTemplate(
@@ -28,10 +29,14 @@ export async function loadTemplate(
 ): Promise<string> {
   const templateFileName = contextType === 'global'
     ? 'global-context.md'
-    : 'local-context.yml';
+    : 'local-context.md';
 
-  // Try project-local template first (ctx/templates/)
-  const projectTemplatePath = path.join(process.cwd(), 'ctx', 'templates', templateFileName);
+  // Load config to get global directory
+  const projectRoot = process.cwd();
+  const config = await loadConfig(projectRoot);
+
+  // Try project-local template first (e.g., ctx/templates/ or docs/templates/)
+  const projectTemplatePath = path.join(projectRoot, config.global.directory, 'templates', templateFileName);
 
   try {
     const content = await fs.readFile(projectTemplatePath, 'utf-8');

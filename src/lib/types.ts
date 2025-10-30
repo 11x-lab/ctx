@@ -2,19 +2,40 @@
  * Type definitions for context management system
  */
 
+// ===== Config Types =====
+
+export interface Config {
+  version: string;
+  editor: string;
+  local: {
+    patterns: string | string[];
+    ignore: string[];
+  };
+  global: {
+    directory: string;
+    patterns: string | string[];
+    ignore: string[];
+  };
+}
+
 // ===== Context File Types =====
 
 export interface ContextMeta {
   version: string;
-  target: string; // Absolute path from project root (e.g., /src/utils/url.ts)
+  target?: string; // Absolute path from project root (e.g., /src/utils/url.ts)
+}
+
+export interface ContextFrontmatter {
+  what: string;
+  when: string[];
+  not_when?: string[];
+  future?: string[];
 }
 
 export interface ContextFile {
   meta: ContextMeta;
-  what: string;
-  when: string[];
-  not_when: string[];
-  future?: string[];
+  frontmatter: ContextFrontmatter;
+  content: string; // Markdown body content
 }
 
 // ===== Context Content Types =====
@@ -86,4 +107,41 @@ export interface ScannedContext {
   contextPath: string; // Absolute path to context file
   relativePath: string; // Relative path from project root
   content: string; // File content
+}
+
+// ===== Validation Types =====
+
+export type ValidationStatus = 'valid' | 'warning' | 'error';
+
+export type ValidationCheckType =
+  | 'schema'      // YAML/frontmatter structure validation
+  | 'existence'   // File existence check
+  | 'checksum';   // Checksum consistency check
+
+export interface ValidationCheck {
+  type: ValidationCheckType;
+  passed: boolean;
+  code?: string;           // Error/warning code (e.g., 'E001', 'W201')
+  message?: string;
+  suggestion?: string;
+}
+
+export interface ValidationIssue {
+  contextPath: string;
+  targetPath?: string;      // Only for local contexts
+  status: 'warning' | 'error';
+  checks: ValidationCheck[];
+}
+
+export interface ValidationResult {
+  total: number;
+  valid: number;
+  warnings: number;
+  errors: number;
+  issues: ValidationIssue[];
+}
+
+export interface ValidateOptions {
+  local?: boolean;
+  global?: boolean;
 }

@@ -1,16 +1,75 @@
 import YAML from 'yaml';
 import matter from 'gray-matter';
+import path from 'path';
 import { ContextFile, ContextPreview } from './types.js';
 
 /**
- * Parse YAML content into ContextFile
+ * Parse context file content into ContextFile
+ * Supports both YAML (.yml) and Markdown (.md) formats
  */
-export function parseContextFile(content: string): ContextFile {
+export function parseContextFile(filepath: string, content: string): ContextFile {
+  const ext = path.extname(filepath).toLowerCase();
+
+  // Markdown format with frontmatter
+  if (ext === '.md' || ext === '.markdown') {
+    return parseMarkdownContext(content);
+  }
+
+  // Legacy YAML format (for backwards compatibility)
+  if (ext === '.yml' || ext === '.yaml') {
+    return parseYAMLContext(content);
+  }
+
+  throw new Error(`Unsupported context file format: ${ext}`);
+}
+
+/**
+ * Parse markdown file with frontmatter
+ */
+function parseMarkdownContext(content: string): ContextFile {
+  try {
+    const { data, content: body } = matter(content);
+
+    return {
+      meta: {
+        version: data.version || '1.0.0',
+        target: data.target, // Optional: explicitly specified target
+      },
+      frontmatter: {
+        what: data.what || '',
+        when: data.when || [],
+        not_when: data.not_when,
+        future: data.future,
+      },
+      content: body.trim(),
+    };
+  } catch (error) {
+    throw new Error(`Failed to parse markdown context: ${error}`);
+  }
+}
+
+/**
+ * Parse legacy YAML format
+ */
+function parseYAMLContext(content: string): ContextFile {
   try {
     const parsed = YAML.parse(content);
-    return parsed as ContextFile;
+
+    return {
+      meta: {
+        version: parsed.meta?.version || '1.0.0',
+        target: parsed.meta?.target,
+      },
+      frontmatter: {
+        what: parsed.what || '',
+        when: parsed.when || [],
+        not_when: parsed.not_when,
+        future: parsed.future,
+      },
+      content: '', // YAML format has no body content
+    };
   } catch (error) {
-    throw new Error(`Failed to parse context YAML: ${error}`);
+    throw new Error(`Failed to parse YAML context: ${error}`);
   }
 }
 
@@ -27,29 +86,20 @@ export function validateContextFile(context: ContextFile): { valid: boolean; err
     if (!context.meta.version) {
       errors.push('Missing required field: meta.version');
     }
-    if (!context.meta.target) {
-      errors.push('Missing required field: meta.target');
-    }
+    // Note: meta.target is optional (can be inferred from filename)
   }
 
-  // Check what
-  if (!context.what || context.what.trim() === '') {
+  // Check frontmatter.what
+  if (!context.frontmatter?.what || context.frontmatter.what.trim() === '') {
     errors.push('Missing required field: what');
   }
 
-  // Check when
-  if (!context.when || !Array.isArray(context.when) || context.when.length === 0) {
+  // Check frontmatter.when
+  if (!context.frontmatter?.when || !Array.isArray(context.frontmatter.when) || context.frontmatter.when.length === 0) {
     errors.push('Missing or empty required field: when');
   }
 
-  // Check not_when
-  if (
-    !context.not_when ||
-    !Array.isArray(context.not_when) ||
-    context.not_when.length === 0
-  ) {
-    errors.push('Missing or empty required field: not_when');
-  }
+  // not_when is optional
 
   return {
     valid: errors.length === 0,
@@ -58,13 +108,13 @@ export function validateContextFile(context: ContextFile): { valid: boolean; err
 }
 
 /**
- * Extract preview from local context file (YAML)
+ * Extract preview from context file (for registry)
  */
 export function extractPreviewFromLocal(context: ContextFile): ContextPreview {
   return {
-    what: context.what,
-    when: context.when,
-    not_when: context.not_when,
+    what: context.frontmatter.what,
+    when: context.frontmatter.when,
+    not_when: context.frontmatter.not_when,
   };
 }
 

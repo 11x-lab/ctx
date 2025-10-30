@@ -51,7 +51,7 @@ describe('create command', () => {
       await createCommand('src/services/payment.ts', { force: true });
 
       // Check context file was created
-      expect(await testEnv.fileExists('src/services/payment.ctx.yml')).toBe(true);
+      expect(await testEnv.fileExists('src/services/payment.ctx.md')).toBe(true);
     });
 
     it('should create context file with correct template structure', async () => {
@@ -59,16 +59,13 @@ describe('create command', () => {
 
       await createCommand('src/utils/helpers.ts', { force: true });
 
-      const contextContent = await testEnv.readFile('src/utils/helpers.ctx.yml');
-      const context = YAML.parse(contextContent);
+      const contextContent = await testEnv.readFile('src/utils/helpers.ctx.md');
 
-      // Check required fields from template
-      expect(context).toHaveProperty('meta');
-      expect(context).toHaveProperty('what');
-      expect(context).toHaveProperty('when');
-      expect(context).toHaveProperty('not_when');
-      expect(context.meta).toHaveProperty('version');
-      expect(context.meta).toHaveProperty('target');
+      // Check for frontmatter markers
+      expect(contextContent).toContain('---');
+      expect(contextContent).toContain('target:');
+      expect(contextContent).toContain('what:');
+      expect(contextContent).toContain('when:');
     });
 
     it('should render template with absolute target path', async () => {
@@ -76,11 +73,10 @@ describe('create command', () => {
 
       await createCommand('src/models/user.ts', { force: true });
 
-      const contextContent = await testEnv.readFile('src/models/user.ctx.yml');
-      const context = YAML.parse(contextContent);
+      const contextContent = await testEnv.readFile('src/models/user.ctx.md');
 
       // Target path should be absolute (starts with /)
-      expect(context.meta.target).toBe('/src/models/user.ts');
+      expect(contextContent).toContain('target: /src/models/user.ts');
     });
 
     it('should create context file for directory', async () => {
@@ -88,8 +84,8 @@ describe('create command', () => {
 
       await createCommand('src/api/', { force: true });
 
-      // For directories, context file is ctx.yml inside the directory
-      expect(await testEnv.fileExists('src/api/ctx.yml')).toBe(true);
+      // For directories, context file is ctx.md inside the directory
+      expect(await testEnv.fileExists('src/api/ctx.md')).toBe(true);
     });
 
     it('should create nested directories if they do not exist', async () => {
@@ -99,7 +95,7 @@ describe('create command', () => {
       await createCommand('src/deeply/nested/path/file.ts', { force: true });
 
       // Context file should be created along with directories
-      expect(await testEnv.fileExists('src/deeply/nested/path/file.ctx.yml')).toBe(true);
+      expect(await testEnv.fileExists('src/deeply/nested/path/file.ctx.md')).toBe(true);
     });
 
     it('should warn if target file does not exist but still create context', async () => {
@@ -108,7 +104,7 @@ describe('create command', () => {
       await createCommand('src/nonexistent.ts', { force: true });
 
       // Context file should still be created
-      expect(await testEnv.fileExists('src/nonexistent.ctx.yml')).toBe(true);
+      expect(await testEnv.fileExists('src/nonexistent.ctx.md')).toBe(true);
 
       // Check console output for warning
       const output = consoleOutput.getOutput();
@@ -172,8 +168,8 @@ describe('create command', () => {
     beforeEach(async () => {
       // Create existing context file
       await testEnv.createFile(
-        'src/existing.ctx.yml',
-        'meta:\n  version: 0.0.1\n  target: /src/existing.ts\nwhat: old content'
+        'src/existing.ctx.md',
+        '---\ntarget: /src/existing.ts\nwhat: old content\nwhen:\n  - test\n---\n\n# Old Content'
       );
     });
 
@@ -187,7 +183,7 @@ describe('create command', () => {
       expect(mockPrompt).toHaveBeenCalled();
 
       // Original content should remain
-      const content = await testEnv.readFile('src/existing.ctx.yml');
+      const content = await testEnv.readFile('src/existing.ctx.md');
       expect(content).toContain('old content');
     });
 
@@ -198,9 +194,9 @@ describe('create command', () => {
       expect(mockPrompt).not.toHaveBeenCalled();
 
       // File should be overwritten (no longer contains old content)
-      const content = await testEnv.readFile('src/existing.ctx.yml');
+      const content = await testEnv.readFile('src/existing.ctx.md');
       expect(content).not.toContain('old content');
-      expect(content).toContain('TODO');
+      expect(content).toContain('Brief description');
     });
 
     it('should overwrite if user confirms prompt', async () => {
@@ -213,7 +209,7 @@ describe('create command', () => {
       expect(mockPrompt).toHaveBeenCalled();
 
       // File should be overwritten
-      const content = await testEnv.readFile('src/existing.ctx.yml');
+      const content = await testEnv.readFile('src/existing.ctx.md');
       expect(content).not.toContain('old content');
     });
   });
@@ -244,17 +240,15 @@ describe('create command', () => {
 
       // First run
       await createCommand('src/test.ts', { force: true });
-      const firstContent = await testEnv.readFile('src/test.ctx.yml');
-      const firstParsed = YAML.parse(firstContent);
+      const firstContent = await testEnv.readFile('src/test.ctx.md');
 
       // Second run
       await createCommand('src/test.ts', { force: true });
-      const secondContent = await testEnv.readFile('src/test.ctx.yml');
-      const secondParsed = YAML.parse(secondContent);
+      const secondContent = await testEnv.readFile('src/test.ctx.md');
 
-      // Structure should be identical
-      expect(firstParsed.meta.target).toBe(secondParsed.meta.target);
-      expect(firstParsed.meta.version).toBe(secondParsed.meta.version);
+      // Content should be identical
+      expect(firstContent).toBe(secondContent);
+      expect(firstContent).toContain('target: /src/test.ts');
     });
 
     it('should produce consistent global context structure', async () => {

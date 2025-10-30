@@ -1,0 +1,20 @@
+meta:
+  version: 1.0.0
+  last_synced: 2025-10-29T08:19:18.759Z
+contexts:
+  /src/utils/stringUtils.ts:
+    type: file
+    source: src/utils/stringUtils.ctx.md
+    checksum: 67feb1388624457a6d0286b40590f13e
+    target_checksum: e83e63799f9c83a006527e571f9be3d9
+    last_modified: 2025-10-29T07:29:42.473Z
+    preview:
+      what: DEPRECATED string concatenation utilities - do not use in new code
+      when:
+        - NEVER - This module is deprecated and should not be used
+        - Only when maintaining legacy code that already imports from this file
+        - When planning migration away from these utilities
+      not_when:
+        - When starting new features or components
+        - When refactoring existing code (migrate away instead)
+        - For any production code going forward

@@ -5,27 +5,22 @@ import { fileURLToPath } from 'url';
 import chalk from 'chalk';
 import YAML from 'yaml';
 import { getPlatform, isPlatformSupported } from '../lib/platforms/index.js';
+import { createConfigFile } from '../lib/config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-interface InitConfig {
-  editor: string;
-  version: string;
-}
 
 export async function initCommand() {
   console.log(chalk.blue.bold('\n🚀 Initializing Context-Driven Development\n'));
 
   try {
-    // Check if already initialized
-    const configPath = path.join(process.cwd(), 'ctx.config.yaml');
-    const ctxDirPath = path.join(process.cwd(), 'ctx');
+    const projectRoot = process.cwd();
+    const configPath = path.join(projectRoot, 'ctx.config.yaml');
 
+    // Check if config exists to determine initialization status
     const configExists = await fileExists(configPath);
-    const ctxDirExists = await fileExists(ctxDirPath);
 
-    if (configExists || ctxDirExists) {
+    if (configExists) {
       console.log(chalk.yellow('⚠️  Context management is already initialized in this directory.'));
 
       const { overwrite } = await inquirer.prompt([
@@ -57,29 +52,27 @@ export async function initCommand() {
       },
     ]);
 
-    // Create config object
-    const config: InitConfig = {
-      editor,
-      version: '0.1.0',
-    };
-
-    // Write ctx.config.yaml
-    const yamlContent = YAML.stringify(config);
-    await fs.writeFile(configPath, yamlContent, 'utf-8');
+    // Write ctx.config.yaml with full config structure
+    await createConfigFile(projectRoot, { editor });
     console.log(chalk.green('✓ Created ctx.config.yaml'));
 
-    // Create ctx directory
-    await fs.mkdir(ctxDirPath, { recursive: true });
-    console.log(chalk.green('✓ Created ctx directory'));
+    // Load config to get global directory setting
+    const { loadConfig, DEFAULT_CONFIG } = await import('../lib/config.js');
+    const config = await loadConfig(projectRoot);
+    const globalDirPath = path.join(projectRoot, config.global.directory);
+
+    // Create global context directory
+    await fs.mkdir(globalDirPath, { recursive: true });
+    console.log(chalk.green(`✓ Created ${config.global.directory} directory`));
 
     // Create templates directory and copy all template files
-    const templatesDir = path.join(ctxDirPath, 'templates');
+    const templatesDir = path.join(globalDirPath, 'templates');
     const packageTemplatesDir = path.join(__dirname, '..', 'templates');
 
     try {
       // Copy entire templates directory (excluding ai-commands subdirectory)
       await copyTemplates(packageTemplatesDir, templatesDir);
-      console.log(chalk.green(`✓ Copied template files to ctx/templates/`));
+      console.log(chalk.green(`✓ Copied template files to ${config.global.directory}/templates/`));
     } catch (error) {
       console.log(chalk.yellow(`⚠️  Warning: Could not copy template files: ${error}`));
     }
@@ -98,28 +91,28 @@ export async function initCommand() {
     };
 
     await fs.writeFile(
-      path.join(ctxDirPath, 'local-context-registry.yml'),
+      path.join(globalDirPath, 'local-context-registry.yml'),
       YAML.stringify(localRegistry),
       'utf-8'
     );
     console.log(chalk.green('✓ Created local-context-registry.yml'));
 
     await fs.writeFile(
-      path.join(ctxDirPath, 'global-context-registry.yml'),
+      path.join(globalDirPath, 'global-context-registry.yml'),
       YAML.stringify(globalRegistry),
       'utf-8'
     );
     console.log(chalk.green('✓ Created global-context-registry.yml'));
 
-    // Create README in ctx
+    // Create README in global directory
     const readmeContent = `# Context Directory
 
 This directory contains project-wide context documentation.
 
 ## Registries
 
-- \`local-context-registry.yml\` - Index of all local context files (*.ctx.yml)
-- \`global-context-registry.yml\` - Index of all global context files (ctx/**/*.md)
+- \`local-context-registry.yml\` - Index of all local context files (*.ctx.md)
+- \`global-context-registry.yml\` - Index of all global context files (${config.global.directory}/**/*.md)
 
 These registries are auto-generated. Do not edit manually.
 
@@ -127,7 +120,7 @@ These registries are auto-generated. Do not edit manually.
 
 The \`templates/\` directory contains template files for creating contexts:
 
-- \`local-context.yml\` - Template for local context files (*.ctx.yml)
+- \`local-context.md\` - Template for local context files (*.ctx.md)
 - \`global-context.md\` - Template for global context documents
 
 **Customization**: You can modify these templates to fit your project's needs. The \`ctx create\` command will use your customized templates automatically.
@@ -143,8 +136,8 @@ You can organize your context files however you like. Here are some common patte
 Feel free to create your own structure that fits your project needs.
 `;
 
-    await fs.writeFile(path.join(ctxDirPath, 'README.md'), readmeContent, 'utf-8');
-    console.log(chalk.green('✓ Created ctx/README.md'));
+    await fs.writeFile(path.join(globalDirPath, 'README.md'), readmeContent, 'utf-8');
+    console.log(chalk.green(`✓ Created ${config.global.directory}/README.md`));
 
     // Install AI commands for the selected platform
     if (isPlatformSupported(editor)) {
@@ -154,7 +147,7 @@ Feel free to create your own structure that fits your project needs.
 
     console.log(chalk.blue.bold('\n✨ Initialization complete!\n'));
     console.log(chalk.gray('Next steps:'));
-    console.log(chalk.gray('  1. Create your first context file: ') + chalk.white('<filename>.ctx.yml'));
+    console.log(chalk.gray('  1. Create your first context file: ') + chalk.white('<filename>.ctx.md'));
     console.log(chalk.gray('  2. Run: ') + chalk.white('ctx sync'));
     console.log(chalk.gray('  3. Learn more: ') + chalk.white('ctx --help\n'));
 

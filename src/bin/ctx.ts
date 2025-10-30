@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { initCommand } from '../commands/init.js';
 import { createCommand } from '../commands/create.js';
 import { syncCommand } from '../commands/sync.js';
+import { validateCommand } from '../commands/validate.js';
 
 const program = new Command();
 
@@ -32,5 +33,12 @@ program
   .option('--local', 'Sync only local contexts')
   .option('--global', 'Sync only global contexts')
   .action(syncCommand);
+
+program
+  .command('validate')
+  .description('Validate context files and check consistency')
+  .option('--local', 'Validate only local contexts')
+  .option('--global', 'Validate only global contexts')
+  .action(validateCommand);
 
 program.parse(process.argv);

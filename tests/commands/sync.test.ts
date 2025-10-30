@@ -29,48 +29,50 @@ describe('sync command', () => {
 
   describe('local context synchronization', () => {
     it('should sync a single local context file to registry', async () => {
-      // Create a local context file
-      const contextContent = `meta:
-  version: 0.0.1
-  target: /src/test.ts
-
-what: |
-  Test module for demonstration
-
+      // Create a local context file with markdown frontmatter
+      const contextContent = `---
+target: /src/test.ts
+what: Test module for demonstration
 when:
   - When testing sync functionality
-
 not_when:
   - When not testing
+---
+
+# Test Module
+
+This is a test context.
 `;
-      await testEnv.createFile('src/test.ctx.yml', contextContent);
+      await testEnv.createFile('src/test.ctx.md', contextContent);
 
       // Run sync
       await syncCommand({ local: true });
 
       // Check registry was updated
       const registryContent = await testEnv.readFile('ctx/local-context-registry.yml');
-      expect(registryContent).toContain('src/test.ctx.yml');
+      expect(registryContent).toContain('src/test.ctx.md');
       expect(registryContent).toContain('/src/test.ts');
     });
 
     it('should sync multiple local context files', async () => {
       // Create multiple context files
       const contexts = [
-        { path: 'src/a.ctx.yml', target: '/src/a.ts' },
-        { path: 'src/b.ctx.yml', target: '/src/b.ts' },
-        { path: 'src/nested/c.ctx.yml', target: '/src/nested/c.ts' },
+        { path: 'src/a.ctx.md', target: '/src/a.ts' },
+        { path: 'src/b.ctx.md', target: '/src/b.ts' },
+        { path: 'src/nested/c.ctx.md', target: '/src/nested/c.ts' },
       ];
 
       for (const ctx of contexts) {
-        const content = `meta:
-  version: 0.0.1
-  target: ${ctx.target}
+        const content = `---
+target: ${ctx.target}
 what: Test
 when:
   - Always
 not_when:
   - Never
+---
+
+# Test Context
 `;
         await testEnv.createFile(ctx.path, content);
       }
@@ -86,15 +88,17 @@ not_when:
     });
 
     it('should update registry when local contexts change', async () => {
-      const contextPath = 'src/test.ctx.yml';
-      const contextContent = `meta:
-  version: 0.0.1
-  target: /src/test.ts
+      const contextPath = 'src/test.ctx.md';
+      const contextContent = `---
+target: /src/test.ts
 what: Original content
 when:
   - Original
 not_when:
   - Never
+---
+
+# Context
 `;
       await testEnv.createFile(contextPath, contextContent);
 
@@ -176,8 +180,8 @@ Content here.
     it('should sync both local and global contexts by default', async () => {
       // Create both types
       await testEnv.createFile(
-        'src/test.ctx.yml',
-        'meta:\n  version: 0.0.1\n  target: /src/test.ts\nwhat: Test\nwhen:\n  - Always\nnot_when:\n  - Never\n'
+        'src/test.ctx.md',
+        '---\ntarget: /src/test.ts\nwhat: Test\nwhen:\n  - Always\nnot_when:\n  - Never\n---\n\n# Test\n'
       );
 
       await testEnv.createFile(
@@ -192,7 +196,7 @@ Content here.
       const localRegistry = await testEnv.readFile('ctx/local-context-registry.yml');
       const globalRegistry = await testEnv.readFile('ctx/global-context-registry.yml');
 
-      expect(localRegistry).toContain('src/test.ctx.yml');
+      expect(localRegistry).toContain('src/test.ctx.md');
       expect(globalRegistry).toContain('ctx/doc.md');
     });
   });
@@ -213,16 +217,18 @@ Content here.
 
   describe('idempotency', () => {
     it('should produce same result when synced multiple times', async () => {
-      const contextContent = `meta:
-  version: 0.0.1
-  target: /src/stable.ts
+      const contextContent = `---
+target: /src/stable.ts
 what: Stable content
 when:
   - Always
 not_when:
   - Never
+---
+
+# Stable Context
 `;
-      await testEnv.createFile('src/stable.ctx.yml', contextContent);
+      await testEnv.createFile('src/stable.ctx.md', contextContent);
 
       // First sync
       await syncCommand({ local: true });
@@ -242,8 +248,8 @@ not_when:
 
     it('should handle repeated syncs with no content changes efficiently', async () => {
       await testEnv.createFile(
-        'src/test.ctx.yml',
-        'meta:\n  version: 0.0.1\n  target: /src/test.ts\nwhat: Test\nwhen:\n  - Always\nnot_when:\n  - Never\n'
+        'src/test.ctx.md',
+        '---\ntarget: /src/test.ts\nwhat: Test\nwhen:\n  - Always\nnot_when:\n  - Never\n---\n\n# Test\n'
       );
 
       // Multiple syncs
