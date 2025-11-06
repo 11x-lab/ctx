@@ -3,6 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import { Platform } from './types.js';
 import { getAICommandTemplates, loadAICommandTemplate } from '../templates.js';
+import { loadConfig } from '../config.js';
 
 /**
  * Claude Code platform implementation
@@ -37,6 +38,10 @@ export class ClaudeCodePlatform implements Platform {
     // Create .claude/commands directory
     await fs.mkdir(commandsDir, { recursive: true });
 
+    // Load config to get global directory
+    const config = await loadConfig(this.projectRoot);
+    const globalDir = config.global.directory;
+
     // Get all AI command templates
     const templates = await getAICommandTemplates();
 
@@ -45,9 +50,13 @@ export class ClaudeCodePlatform implements Platform {
       return;
     }
 
-    // Copy each template with ctx. prefix
+    // Copy each template with ctx. prefix and substitute placeholders
     for (const templateName of templates) {
-      const content = await loadAICommandTemplate(templateName);
+      let content = await loadAICommandTemplate(templateName);
+
+      // Substitute {{GLOBAL_DIR}} placeholder with actual global directory
+      content = content.replace(/\{\{GLOBAL_DIR\}\}/g, globalDir);
+
       const targetPath = path.join(commandsDir, `ctx.${templateName}`);
       await fs.writeFile(targetPath, content, 'utf-8');
     }
@@ -64,12 +73,19 @@ export class ClaudeCodePlatform implements Platform {
       throw new Error('AI commands not installed. Run `ctx init` first.');
     }
 
+    // Load config to get global directory
+    const config = await loadConfig(this.projectRoot);
+    const globalDir = config.global.directory;
+
     const templates = await getAICommandTemplates();
     let updated = 0;
 
     for (const templateName of templates) {
       const targetPath = path.join(commandsDir, `ctx.${templateName}`);
-      const templateContent = await loadAICommandTemplate(templateName);
+      let templateContent = await loadAICommandTemplate(templateName);
+
+      // Substitute {{GLOBAL_DIR}} placeholder with actual global directory
+      templateContent = templateContent.replace(/\{\{GLOBAL_DIR\}\}/g, globalDir);
 
       // Check if file exists and content is different
       try {

@@ -4,6 +4,13 @@
 
 // ===== Config Types =====
 
+export type FrontmatterMode = 'required' | 'optional' | 'none';
+
+export interface FrontmatterConfig {
+  local: FrontmatterMode;
+  global: FrontmatterMode;
+}
+
 export interface Config {
   version: string;
   editor: string;
@@ -16,6 +23,7 @@ export interface Config {
     patterns: string | string[];
     ignore: string[];
   };
+  frontmatter: FrontmatterConfig;
 }
 
 // ===== Context File Types =====

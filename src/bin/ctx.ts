@@ -5,6 +5,7 @@ import { initCommand } from '../commands/init.js';
 import { createCommand } from '../commands/create.js';
 import { syncCommand } from '../commands/sync.js';
 import { validateCommand } from '../commands/validate.js';
+import { refreshCommand } from '../commands/refresh.js';
 
 const program = new Command();
 
@@ -40,5 +41,10 @@ program
   .option('--local', 'Validate only local contexts')
   .option('--global', 'Validate only global contexts')
   .action(validateCommand);
+
+program
+  .command('refresh')
+  .description('Refresh AI commands with current config settings')
+  .action(refreshCommand);
 
 program.parse(process.argv);

@@ -27,6 +27,10 @@ export const DEFAULT_CONFIG: Config = {
       '*-context-registry.yml',  // System-generated registry files
     ],
   },
+  frontmatter: {
+    local: 'optional',
+    global: 'optional',
+  },
 };
 
 /**
@@ -58,6 +62,10 @@ export async function loadConfig(projectRoot: string): Promise<Config> {
           ...DEFAULT_CONFIG.global.ignore,
           ...(userConfig.global?.ignore || []),
         ],
+      },
+      frontmatter: {
+        local: userConfig.frontmatter?.local || DEFAULT_CONFIG.frontmatter.local,
+        global: userConfig.frontmatter?.global || DEFAULT_CONFIG.frontmatter.global,
       },
     };
   } catch (error) {

@@ -41,7 +41,7 @@ export async function scanLocalContexts(
       }
     }
   }
-
+ 
   return contexts;
 }
 
