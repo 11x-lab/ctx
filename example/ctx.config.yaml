@@ -10,6 +10,12 @@ local:
     - build/**
     - .git/**
 global:
-  directory: ctx
+  directory: docs
   patterns: "**/*.md"
-  ignore: []
+  ignore:
+    - templates/**
+    - README.md
+    - "*-context-registry.yml"
+frontmatter:
+  local: optional
+  global: optional

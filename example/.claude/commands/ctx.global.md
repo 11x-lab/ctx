@@ -1,260 +1,613 @@
 ---
-description: Manage global context documentation (create or update)
-argument-hint: <path-or-intent> [content]
+description: Create or update global context documentation
+argument-hint: [path] [intent]
 ---
 
 You are assisting with managing global context documentation.
 
 # Arguments
 
-**$ARGUMENTS**: Flexible input - can be path, intent, or both
+**$ARGUMENTS**: Path (optional) and intent
+
+- **Path**: relative or absolute path (`./`, `../`, `/`)
+- **Intent**: Natural language description of what to create/update
 
 Examples:
-- `architecture/caching.md` (path only)
-- `rules/api-design.md Add REST versioning guidelines` (path + content)
-- `typescript rule에 enum 대신 union type 쓰도록 추가` (natural language intent)
+- `docs/rules/api.md Add REST versioning guidelines`
+- `./architecture/caching.md Document Redis strategy`
+- `Add TypeScript enum alternatives to coding rules`
 
 # Your Task
 
-Manage (create or update) global context documentation. Global contexts are project-level Markdown documents stored in `ctx/` that describe architecture, rules, processes, or any project-wide knowledge.
+Create or update global context documentation with validation and smart conflict detection.
 
-# Workflow (Follow Step-by-Step)
+# Workflow
 
-## Step 0: Parse $ARGUMENTS
+## Step 1: Validate First
 
-**Pure argument parsing:**
+**ALWAYS start by running validation:**
 
-1. **Extract first token**: Everything before first space (if any)
-2. **Extract remaining text**: Everything after first space (if any)
+```bash
+ctx validate --global
+```
 
-## Step 1: Search Registry First
+### Handle Validation Results
 
-**Always start by searching the global registry** (`ctx/.global-context-registry.yml`):
+**If errors found:**
+```markdown
+❌ Validation errors found
 
-1. **Search for exact path match**:
-   - Check if first token matches any document path
-   - Normalize: prepend `ctx/` if needed, add `.md` if missing
+[Show error details with affected files]
 
-2. **Search for semantic matches**:
-   - Search entire $ARGUMENTS in: file paths, ai_comments, categories
+Please fix these errors manually before proceeding:
+1. [Specific fix instruction for error 1]
+2. [Specific fix instruction for error 2]
+
+After fixing, run this command again.
+```
+**STOP - Do not proceed with any further steps.**
+
+**If warnings only:**
+- Show warnings to user
+- Inform that these are non-blocking
+- Proceed to next step
+
+**If no errors or warnings:**
+- Briefly confirm validation passed
+- Proceed to next step
+
+---
+
+## Step 2: Parse Arguments
+
+**Extract path and intent from $ARGUMENTS:**
+
+1. **Detect path format:**
+   - IF $ARGUMENTS starts with `{{glboal/` OR `./` OR `../`:
+     - path = first token (everything before first space)
+     - intent = remaining text (everything after first space)
+   - ELSE:
+     - path = null
+     - intent = entire $ARGUMENTS
+
+2. **Validate path format (if path provided):**
+   - Path MUST start with `docs/`, `./`, or `../`
+   - If not → Show error and STOP:
+     ```markdown
+     ❌ Invalid path format: `[invalid-path]`
+
+     Path must include:
+     - `docs/` prefix (e.g., `docs/rules/api.md`)
+     - OR relative path (e.g., `./rules/api.md` or `../docs/rules/api.md`)
+
+     Examples:
+     ✅ docs/rules/api.md
+     ✅ ./rules/api.md
+     ✅ ../docs/rules/api.md
+     ❌ rules/api.md (missing prefix)
+     ```
+
+---
+
+## Step 3: Determine Target
+
+### If path provided:
+
+1. **Check file existence:**
+   - File exists → UPDATE mode
+   - File does not exist → CREATE mode
+
+2. **Search for similar documents** (duplicate detection):
+   - Search registry for semantically similar docs
+   - Match against: paths, ai_comments, categories
+   - Consider: similar naming, related topics
+
+3. **Warn if duplicates found:**
+   ```markdown
+   ⚠️ Similar documents already exist:
+
+   • [doc-path-1] - [ai_comment or description]
+   • [doc-path-2] - [ai_comment or description]
+
+   Continue creating/updating `[target-path]`?
+   ```
+   - Use **AskUserQuestion** tool for confirmation
+   - If user says no → Ask which existing doc to update instead
+   - If user says yes → Proceed to Generate Content
+
+4. **If no duplicates:**
+   - Proceed directly to Generate Content
+
+### If intent only (no path):
+
+1. **Search registry semantically:**
+   - Search entire intent in: file paths, ai_comments, categories
    - Find all potentially relevant documents
 
-3. **Determine mode**:
-   - **Exact path match found** → Path Mode (skip to Step 2)
-   - **Semantic matches found** → Intent Mode (show results)
-   - **No matches** → New Document Mode (suggest path)
+2. **Handle search results:**
 
----
-
-## Step 2: Path Mode (Exact Match Found)
-
-**A document at the specified path exists or path is clearly defined:**
-
-### If content provided in $ARGUMENTS:
-
-1. **Read existing document** (if UPDATE)
-
-2. **Generate updated content**:
-   - For CREATE: Generate Markdown from content
-   - For UPDATE: Merge content with existing
-
-3. **Present result**:
+   **IF exactly 1 match:**
    ```markdown
-   ## 📝 [Creating/Updating]: `[path]`
+   Found: [doc-path] - [ai_comment]
 
-   [Show generated/updated content]
-
-   ---
-
-   👉 **Approve?** (yes/no/edit)
+   I'll update this document with: "[intent]"
    ```
+   - Auto-select and proceed to Generate Content
 
-4. **On approval** → Jump to Final Step
-
-### If no content provided:
-
-**For CREATE:**
-1. Ask: `What should this document contain?`
-2. Generate draft from response
-3. Present draft → Get approval → Final Step
-
-**For UPDATE:**
-1. Read existing document
-2. Ask: `What would you like to change?`
-3. Generate updates from response
-4. Present changes → Get approval → Final Step
-
----
-
-## Step 2: Intent Mode (Semantic Matches Found)
-
-**Multiple potentially relevant documents found:**
-
-1. **Present search results**:
+   **IF multiple matches:**
    ```markdown
-   ## Found related documents for: "$ARGUMENTS"
+   ## Found related documents for: "[intent]"
 
-   1. [path] - [ai_comment]
-   2. [path] - [ai_comment]
+   1. [path-1] - [ai_comment-1]
+   2. [path-2] - [ai_comment-2]
    ...
 
-   👉 **Which document should I work on?** (1/2.../new)
+   Which document should I work on? (enter number or 'new' for new document)
    ```
+   - Use **AskUserQuestion** tool
+   - Based on response:
+     - Number → Select that document → Generate Content
+     - 'new' → Proceed to "no matches" flow below
 
-2. **Based on user choice**:
-   - **Existing document (1/2/...)**: Read it, apply intent from $ARGUMENTS
-   - **New document**: Ask for suggested path or generate from intent
-
-3. **Generate content/updates** based on $ARGUMENTS intent
-
-4. **Present result**:
-   ```markdown
-   ## 📝 [Creating/Updating]: `[path]`
-
-   [Show generated/updated content]
-
-   ---
-
-   👉 **Approve?** (yes/no/edit)
-   ```
-
-5. **On approval** → Jump to Final Step
-
----
-
-## Step 2: New Document Mode (No Matches)
-
-**No existing documents match the query:**
-
-1. **Suggest path** based on $ARGUMENTS:
+   **IF no matches:**
    ```markdown
    No related documents found.
 
    Based on your request, I suggest creating:
-   **[suggested-path]**
+   **docs/[suggested-path]**
 
-   👉 **Approve path?** (yes/no/custom-path)
+   Create at this path? (yes / or provide custom path)
    ```
-
-2. **Generate content** from $ARGUMENTS intent
-
-3. **Present draft**:
-   ```markdown
-   ## 📝 Creating: `[path]`
-
-   [Show generated content]
-
-   ---
-
-   👉 **Approve?** (yes/no/edit)
-   ```
-
-4. **On approval** → Jump to Final Step
+   - Use **AskUserQuestion** tool
+   - Generate suggested path from intent semantics
+   - If custom path provided → validate format → use it
+   - Proceed to Generate Content
 
 ---
 
-## Final Step: Write & Sync
+## Step 4: Generate Content
 
-### Write the Document
+### Determine if content is sufficient:
+
+**If intent has substantial content:**
+- Proceed to generate document immediately
+- For CREATE: Generate new document from intent
+- For UPDATE: Read existing doc, merge/apply changes from intent
+
+**If intent is empty or too vague:**
+- Use **AskUserQuestion** tool:
+  - CREATE: "What should this document contain?"
+  - UPDATE: "What would you like to change in this document?"
+- Wait for user response
+- Generate based on detailed response
+
+### Generate and present:
+
+**Generate the content:**
+- For CREATE: Write complete new document
+- For UPDATE: Read existing, create updated version showing changes
+
+**Check frontmatter requirements:**
+- Read `ctx.config.yaml` to check global frontmatter settings
+- Apply frontmatter according to config (required/optional/none)
+- If required: Include `when`, `what`, `not_when` fields
+- If optional: Include frontmatter but note it's optional
+- Respect user's configuration preference
+
+**Present for approval:**
+```markdown
+## 📝 [Creating/Updating]: `[path]`
+
+[For CREATE: Show full document]
+[For UPDATE: Show changes/diff or full updated content]
+
+---
+
+Proceed with this change?
+```
+
+**Wait for user approval before proceeding to write.**
+
+---
+
+## Step 5: Write & Sync
+
+### Write the File
 
 **For CREATE:**
-1. Run `ctx create <path> --global --force`
-   - Automatically normalizes path to `ctx/`
-   - Adds `.md` extension if missing
-   - Creates directory structure
-   - Includes frontmatter template (when/what/not_when)
 
-2. Use Edit tool to fill in content:
-   - Replace TODO placeholders in frontmatter
-   - Fill when/what/not_when fields
-   - Write main document content below frontmatter
-   - Use clear headings, examples, actionable guidance
+1. **Use Write tool to create the file:**
+   - Write to exact path specified
+   - Include all content (frontmatter + body)
+   - Ensure proper Markdown formatting
 
 **For UPDATE:**
-1. Use Edit tool to update existing document:
-   - Modify changed sections
-   - Update frontmatter if when/what/not_when changed
-   - Keep structure clear and actionable
+
+1. **Use Edit tool to update the file:**
+   - Apply specific changes
+   - Preserve existing formatting
+   - Update relevant sections only
 
 ### MANDATORY: Sync Registry
 
+**Run sync command:**
 ```bash
 ctx sync --global
 ```
 
-**CRITICAL**: This step is REQUIRED. Do not skip.
-- AI annotations generated/updated automatically during sync
-- If sync fails → report error and stop
-- Task NOT complete without successful sync
+**Handle sync results:**
 
-### Provide Summary
-
+**If sync succeeds:**
 ```markdown
 ✓ [Created/Updated] [doc-path]
 ✓ Synced global context registry
 
 Summary:
-- Document: [doc-path]
-- [Brief description of content/changes]
+• Document: [doc-path]
+• [Brief description of changes - 1-2 sentences]
 ```
+
+**If sync fails:**
+```markdown
+⚠️ File written but sync failed
+
+✓ File [created/updated]: [doc-path]
+❌ Sync error: [error message from command]
+
+The document was written successfully, but the registry update failed.
+
+Possible causes:
+• Invalid YAML syntax in a context file
+• Missing frontmatter fields (if required by config)
+• Malformed registry file
+
+Next steps:
+1. Check the error message above
+2. If mentioned, fix issues in: [affected-file-paths]
+3. Run: ctx sync --global
+4. If issue persists, check ctx.config.yaml settings
+
+Your document is ready, just not indexed by AI yet.
+```
+
+**Do NOT mark task as complete if sync fails** - make this clear to user.
+
+---
+
+# What Global Context Does
+
+Global contexts are project-wide Markdown documents stored in `docs/`:
+
+- **Architecture** - System design, diagrams, architectural decisions
+- **Rules** - Coding standards, conventions, best practices
+- **Processes** - Workflows, deployment procedures, team processes
+- **Knowledge** - Any project-level knowledge that applies across the codebase
+
+### When to use global context:
+
+✅ Standards that apply to the entire project
+✅ Architecture that multiple files/modules reference
+✅ Rules that guide code design decisions
+✅ Processes that the team follows
+✅ Knowledge that helps understand the project
+
+❌ File-specific implementation details (use local context)
+❌ Function-level documentation (use code comments)
+❌ Temporary notes (use git commits or docs)
+
+### Frontmatter handling:
+
+- Controlled by `ctx.config.yaml` global configuration
+- Can be: required, optional, or omitted
+- AI annotations added automatically during sync
+
+---
 
 # Important Rules
 
-1. **Registry-first approach**: Always search registry before determining mode
+1. **Always validate first** - Catch issues before creating/updating, block on errors
 
-2. **Free-form Markdown**: No strict template, focus on clarity and usefulness
+2. **Path format is strict** - Must use `docs/` prefix or relative paths (`./`, `../`)
 
-3. **User decides structure**: Categories and organization are user-defined
+3. **Check for duplicates** - Warn even when explicit path is provided
 
-4. **Be clear and concise**: Write for humans who will read this later
+4. **Use AskUserQuestion** - For ambiguous cases, confirmations, and missing information
 
-5. **AI annotations are automatic**: Generated by sync, don't add manually
+5. **MANDATORY sync** - Always sync after write, handle failures gracefully with clear guidance
 
-6. **MANDATORY sync**: Always run `ctx sync --global` after create/update
-   - This is REQUIRED, not optional
-   - If sync fails → report error and stop
-   - Task NOT complete without successful sync
+6. **Respect config** - Follow frontmatter settings defined in `ctx.config.yaml`
 
-7. **Approval format**: Always use `👉 **Approve?** (yes/no/edit)`
+7. **User approval required** - Always present content and wait for approval before writing
+
+8. **Clear error messages** - Provide actionable guidance when things fail
+
+---
 
 # Reference Documents
 
-- Global registry: `ctx/.global-context-registry.yml`
+- **Global registry**: `docs/global-context-registry.yml` - Index of all global contexts
+- **Configuration**: `ctx.config.yaml` - Frontmatter and behavior settings
 
-# Example Usage
+---
 
-## Path Mode Examples
+# Example Interactions
 
-```bash
-# Path only - interactive
-/ctx.global architecture/caching.md
+## Example 1: Path with content (CREATE with duplicate warning)
 
-# Path with content - direct
-/ctx.global rules/api-design.md Use RESTful conventions and version with /v1/ prefix
+**User:** `/ctx.global docs/rules/typescript.md Use union types instead of enums`
 
-# Explicit ctx/ path
-/ctx.global ctx/processes/deployment.md Document our CI/CD pipeline
+**AI:**
+```markdown
+[Runs: ctx validate --global]
+✓ Validation passed
+
+⚠️ Similar documents already exist:
+
+• docs/rules/coding-style.md - TypeScript coding standards and conventions
+• docs/rules/type-safety.md - Type safety guidelines for the project
+
+Continue creating docs/rules/typescript.md?
 ```
 
-## Intent Mode Examples
+**User:** `yes`
 
-```bash
-# Natural language search and update
-/ctx.global typescript rule에 enum 대신 union type 쓰도록 추가
+**AI:**
+```markdown
+## 📝 Creating: docs/rules/typescript.md
 
-# General instruction
-/ctx.global Add API versioning guidelines
+---
+when: Writing TypeScript code
+what: Guidelines for using union types instead of enums
+not_when: Using third-party libraries that export enums
+---
 
-# Korean natural language
-/ctx.global 캐싱 전략에 Redis TTL 설정 가이드 추가해줘
+# TypeScript Guidelines
+
+## Union Types Over Enums
+
+Prefer union types instead of enums for better type safety and flexibility.
+
+### Why Union Types?
+
+- Better type inference
+- More flexible and composable
+- No runtime overhead
+- Easier to extend
+
+### Example
+
+**❌ Avoid:**
+```typescript
+enum Status {
+  Active = 'ACTIVE',
+  Inactive = 'INACTIVE'
+}
 ```
 
-## How It Works
+**✅ Prefer:**
+```typescript
+type Status = 'ACTIVE' | 'INACTIVE';
+```
 
-**Registry-First Approach**:
-- AI always searches registry first
-- Exact path match → Path Mode (direct edit)
-- Semantic matches → Intent Mode (choose from results)
-- No matches → New Document Mode (suggest path)
+### When to use enums
 
-Choose whichever input feels natural - AI will figure it out!
+- Interoperating with libraries that expect enums
+- Need reverse mapping (enum value to name)
+
+---
+
+Proceed with this change?
+```
+
+**User:** `yes`
+
+**AI:**
+```markdown
+[Writes file]
+[Runs: ctx sync --global]
+
+✓ Created docs/rules/typescript.md
+✓ Synced global context registry
+
+Summary:
+• Document: docs/rules/typescript.md
+• Added guidelines preferring union types over enums with examples
+```
+
+---
+
+## Example 2: Intent only (multiple matches)
+
+**User:** `/ctx.global Add Redis caching TTL guidelines`
+
+**AI:**
+```markdown
+[Runs: ctx validate --global]
+✓ Validation passed
+
+## Found related documents for: "Add Redis caching TTL guidelines"
+
+1. docs/architecture/caching-strategy.md - Redis caching architecture and patterns
+2. docs/rules/performance.md - Performance optimization rules and practices
+3. docs/architecture/backend.md - Backend services architecture overview
+
+Which document should I work on? (enter number or 'new' for new document)
+```
+
+**User:** `1`
+
+**AI:**
+```markdown
+[Reads docs/architecture/caching-strategy.md]
+
+## 📝 Updating: docs/architecture/caching-strategy.md
+
+[Shows current content with new TTL section added:]
+
+... [existing content] ...
+
+## TTL Configuration
+
+### Recommended TTL Values
+
+- **Session data**: 30 minutes
+- **User profiles**: 1 hour
+- **Product catalog**: 24 hours
+- **Static content**: 7 days
+
+### Setting TTL in Redis
+
+```javascript
+await redis.setex(key, ttlInSeconds, value);
+```
+
+### Automatic Expiration
+
+Configure automatic key expiration to prevent stale data:
+
+```javascript
+await redis.expire(key, 3600); // 1 hour
+```
+
+---
+
+Proceed with this change?
+```
+
+**User:** `yes`
+
+**AI:**
+```markdown
+✓ Updated docs/architecture/caching-strategy.md
+✓ Synced global context registry
+
+Summary:
+• Document: docs/architecture/caching-strategy.md
+• Added Redis TTL configuration guidelines with recommended values
+```
+
+---
+
+## Example 3: Validation error blocks execution
+
+**User:** `/ctx.global docs/rules/new-rule.md Add database guidelines`
+
+**AI:**
+```markdown
+[Runs: ctx validate --global]
+
+❌ Validation errors found
+
+Errors:
+• docs/architecture/old-system.md - Target file not found (referenced in registry)
+• docs/broken.yml - Invalid YAML syntax at line 15
+
+Please fix these errors manually before proceeding:
+1. Remove docs/architecture/old-system.md from registry or restore the file
+2. Fix YAML syntax error in docs/broken.yml (check line 15 for unclosed bracket)
+
+After fixing, run this command again.
+```
+
+---
+
+## Example 4: Sync failure with guidance
+
+**User:** `/ctx.global docs/processes/deploy.md Document our CI/CD pipeline`
+
+**AI:**
+```markdown
+[Validates successfully, generates content, gets approval, writes file]
+
+[Runs: ctx sync --global]
+
+⚠️ File written but sync failed
+
+✓ File created: docs/processes/deploy.md
+❌ Sync error: Invalid frontmatter in docs/rules/api.md: missing required field 'what'
+
+The document was written successfully, but the registry update failed.
+
+Possible causes:
+• Invalid YAML syntax in a context file
+• Missing frontmatter fields (if required by config)
+• Malformed registry file
+
+Next steps:
+1. Check the error message above
+2. If mentioned, fix issues in: docs/rules/api.md
+3. Run: ctx sync --global
+4. If issue persists, check ctx.config.yaml settings
+
+Your document is ready, just not indexed by AI yet.
+```
+
+---
+
+## Example 5: Invalid path format
+
+**User:** `/ctx.global rules/security.md Add OWASP guidelines`
+
+**AI:**
+```markdown
+[Runs: ctx validate --global]
+✓ Validation passed
+
+❌ Invalid path format: `rules/security.md`
+
+Path must include:
+- `docs/` prefix (e.g., `docs/rules/security.md`)
+- OR relative path (e.g., `./rules/security.md` or `../docs/rules/security.md`)
+
+Examples:
+✅ docs/rules/security.md
+✅ ./rules/security.md
+✅ ../docs/rules/security.md
+❌ rules/security.md (missing prefix)
+
+Please provide a valid path format.
+```
+
+---
+
+## Example 6: No matches, suggest path
+
+**User:** `/ctx.global Add GraphQL schema design best practices`
+
+**AI:**
+```markdown
+[Runs: ctx validate --global]
+✓ Validation passed
+
+No related documents found.
+
+Based on your request, I suggest creating:
+**docs/rules/graphql-schema.md**
+
+Create at this path? (yes / or provide custom path)
+```
+
+**User:** `docs/architecture/graphql.md`
+
+**AI:**
+```markdown
+## 📝 Creating: docs/architecture/graphql.md
+
+---
+when: Designing GraphQL schemas
+what: Best practices for GraphQL schema design
+not_when: Using REST APIs
+---
+
+# GraphQL Schema Design Best Practices
+
+## Schema-First Development
+
+Start with schema definition before docs...
+
+[Full document content]
+
+---
+
+Proceed with this change?
+```
