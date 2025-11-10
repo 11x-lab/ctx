@@ -10,7 +10,7 @@ local:
     - build/**
     - .git/**
 global:
-  directory: docs
+  directory: ctx
   patterns: "**/*.md"
   ignore:
     - templates/**
