@@ -10,7 +10,7 @@ Create a comprehensive planning document based on the issue at: **$ARGUMENTS**
 This command will:
 1. Create a todo list to track progress
 2. Fetch issue details from the provided URL (GitHub, Linear, or generic)
-3. Create a local `{{PLAN_PATH}}` file with structured frontmatter
+3. Create a local `{{plan.path}}` file with structured frontmatter
 4. Load relevant contexts once
 5. Conduct a Q&A session to gather requirements
 6. Generate a high-level implementation plan
@@ -28,10 +28,10 @@ This command will:
 Use TodoWrite to create todos for:
 1. Get git branch and parse arguments
 2. Fetch issue from URL
-3. Create {{PLAN_PATH}} template
+3. Create {{plan.path}} template
 4. Load relevant contexts
 5. Conduct Q&A session
-6. Fill Q&A in {{PLAN_PATH}}
+6. Fill Q&A in {{plan.path}}
 7. Generate implementation plan
 8. Update status to Reviewed
 9. Sync plan to issue
@@ -102,9 +102,9 @@ WebFetch({
 
 ---
 
-## Step 4: Create {{PLAN_PATH}} with Template
+## Step 4: Create {{plan.path}} with Template
 
-**Write to**: `{{PLAN_PATH}}`
+**Write to**: `{{plan.path}}`
 
 **Template:**
 
@@ -127,7 +127,7 @@ status: In Progress
 
 **Show confirmation:**
 ```
-✓ Created {{PLAN_PATH}}
+✓ Created {{plan.path}}
   - Issue: <issue-title>
   - Branch: <branch-name>
   - Status: In Progress
@@ -199,9 +199,9 @@ Please take your time to provide detailed responses to all questions above.
 
 ---
 
-## Step 7: Fill Q&A Section in {{PLAN_PATH}}
+## Step 7: Fill Q&A Section in {{plan.path}}
 
-**After receiving answers**, update `{{PLAN_PATH}}` with the actual Q&A conversation.
+**After receiving answers**, update `{{plan.path}}` with the actual Q&A conversation.
 
 **Record the complete Q&A exchange:**
 - Copy the questions you asked
@@ -238,7 +238,7 @@ A: [User's actual answer here...]
 
 **Show confirmation:**
 ```
-✓ Updated {{PLAN_PATH}} with Q&A conversation
+✓ Updated {{plan.path}} with Q&A conversation
 ```
 
 ---
@@ -303,7 +303,7 @@ A: [User's actual answer here...]
 5. **Reference Q&A** - Use Q&A responses to inform plan structure
 6. **Reference loaded contexts** - Use context knowledge to suggest patterns
 
-**Update {{PLAN_PATH}}** with generated implementation plan.
+**Update {{plan.path}}** with generated implementation plan.
 
 **Show confirmation:**
 ```
@@ -314,7 +314,7 @@ A: [User's actual answer here...]
 
 ## Step 9: Update Status to Reviewed
 
-**Update {{PLAN_PATH}} status** from "In Progress" to "Reviewed".
+**Update {{plan.path}} status** from "In Progress" to "Reviewed".
 
 ```markdown
 ---
@@ -341,7 +341,7 @@ status: Reviewed
 ```bash
 gh api repos/<owner>/<repo>/issues/<number>/comments \
   -X POST \
-  -f body="$(cat {{PLAN_PATH}})"
+  -f body="$(cat {{plan.path}})"
 ```
 
 **Confirmation:**
@@ -354,7 +354,7 @@ gh api repos/<owner>/<repo>/issues/<number>/comments \
 ```typescript
 mcp__linear-server__create_comment({
   issueId: "<issue-id>",
-  body: "<{{PLAN_PATH}}-content>"
+  body: "<{{plan.path}}-content>"
 })
 ```
 
@@ -367,9 +367,9 @@ mcp__linear-server__create_comment({
 
 **Show message:**
 ```
-ℹ Plan created in {{PLAN_PATH}}
+ℹ Plan created in {{plan.path}}
   Cannot auto-sync to generic URLs.
-  Please manually copy {{PLAN_PATH}} content to the issue if needed.
+  Please manually copy {{plan.path}} content to the issue if needed.
 ```
 
 ---
@@ -388,7 +388,7 @@ mcp__linear-server__create_comment({
 - Link: <issue-link>
 - Branch: <git-branch>
 - Status: Reviewed
-- File: {{PLAN_PATH}}
+- File: {{plan.path}}
 
 **What's in the plan:**
 - ✓ Q&A responses (scope, design, testing)
@@ -397,7 +397,7 @@ mcp__linear-server__create_comment({
 - ✓ Reusable resources identified
 
 **Next Steps:**
-1. Review the plan in `{{PLAN_PATH}}`
+1. Review the plan in `{{plan.path}}`
 2. Make any adjustments if needed
 3. Start implementation following the phases
 4. Update status to "Completed" when done
@@ -420,7 +420,7 @@ mcp__linear-server__create_comment({
 9. **Include test phase conditionally** - Only if user wants tests
 10. **Update status to Reviewed** - After implementation plan is generated
 11. **Sync to issue** - Post plan as comment (GitHub/Linear only)
-12. **{{PLAN_PATH}} is local** - Not committed (gitignored)
+12. **{{plan.path}} is local** - Not committed (gitignored)
 13. **Status progression** - In Progress → Reviewed → Completed (manual)
 
 ---
@@ -456,9 +456,9 @@ Include a risks section if warranted:
 
 # Reference
 
-- Local registry: `{{GLOBAL_DIR}}/local-context-registry.yml`
-- Global registry: `{{GLOBAL_DIR}}/global-context-registry.yml`
-- Plan file: `{{PLAN_PATH}}` (gitignored)
+- Local registry: `{{global.directory}}/local-context-registry.yml`
+- Global registry: `{{global.directory}}/global-context-registry.yml`
+- Plan file: `{{plan.path}}` (gitignored)
 - Keep contexts updated: `/ctx.sync`
 - Validate contexts: `/ctx.validate`
 - Load contexts: `/ctx.load <description>`

@@ -1,40 +1,26 @@
 import fs from 'fs/promises';
+import { readFileSync } from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import YAML from 'yaml';
 import { Config } from './types.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 /**
- * Default configuration
+ * Load default configuration from template file
  */
-export const DEFAULT_CONFIG: Config = {
-  version: '0.1.0',
-  editor: 'claude-code',
-  local: {
-    patterns: ['**/*.ctx.md', '**/ctx.md'],
-    ignore: [
-      'node_modules/**',
-      'dist/**',
-      'build/**',
-      '.git/**',
-    ],
-  },
-  global: {
-    directory: 'ctx',
-    patterns: '**/*.md',
-    ignore: [
-      'templates/**',
-      'README.md',
-      '*-context-registry.yml',  // System-generated registry files
-    ],
-  },
-  plan: {
-    path: 'plan.md',
-  },
-  frontmatter: {
-    local: 'optional',
-    global: 'optional',
-  },
-};
+function loadDefaultConfig(): Config {
+  const templatePath = path.join(__dirname, '../templates/ctx.config.yaml');
+  const content = readFileSync(templatePath, 'utf-8');
+  return YAML.parse(content) as Config;
+}
+
+/**
+ * Default configuration (loaded from template)
+ */
+export const DEFAULT_CONFIG: Config = loadDefaultConfig();
 
 /**
  * Load configuration from ctx.config.yaml
@@ -96,4 +82,35 @@ export async function createConfigFile(
 
   const yamlContent = YAML.stringify(config);
   await fs.writeFile(configPath, yamlContent, 'utf-8');
+}
+
+/**
+ * Flatten config object into dot-notation placeholders
+ * Example: { global: { directory: 'ctx' } } -> { 'global.directory': 'ctx' }
+ */
+export function flattenConfig(config: Config): Record<string, string> {
+  const placeholders: Record<string, string> = {};
+
+  function flatten(obj: any, prefix: string = '') {
+    for (const key in obj) {
+      const value = obj[key];
+      const path = prefix ? `${prefix}.${key}` : key;
+
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        flatten(value, path);
+      } else if (value !== undefined) {
+        // Convert value to string for placeholder replacement
+        placeholders[path] = Array.isArray(value) ? value.join(', ') : String(value);
+      }
+    }
+  }
+
+  flatten(config);
+
+  // Provide default values for optional config fields
+  if (!placeholders['plan.path']) {
+    placeholders['plan.path'] = 'plan.md';
+  }
+
+  return placeholders;
 }

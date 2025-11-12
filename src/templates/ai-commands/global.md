@@ -13,7 +13,7 @@ You are assisting with managing global context documentation.
 - **Intent**: Natural language description of what to create/update
 
 Examples:
-- `{{GLOBAL_DIR}}/rules/api.md Add REST versioning guidelines`
+- `{{global.directory}}/rules/api.md Add REST versioning guidelines`
 - `./architecture/caching.md Document Redis strategy`
 - `Add TypeScript enum alternatives to coding rules`
 
@@ -71,19 +71,19 @@ After fixing, run this command again.
      - intent = entire $ARGUMENTS
 
 2. **Validate path format (if path provided):**
-   - Path MUST start with `{{GLOBAL_DIR}}/`, `./`, or `../`
+   - Path MUST start with `{{global.directory}}/`, `./`, or `../`
    - If not → Show error and STOP:
      ```markdown
      ❌ Invalid path format: `[invalid-path]`
 
      Path must include:
-     - `{{GLOBAL_DIR}}/` prefix (e.g., `{{GLOBAL_DIR}}/rules/api.md`)
-     - OR relative path (e.g., `./rules/api.md` or `../{{GLOBAL_DIR}}/rules/api.md`)
+     - `{{global.directory}}/` prefix (e.g., `{{global.directory}}/rules/api.md`)
+     - OR relative path (e.g., `./rules/api.md` or `../{{global.directory}}/rules/api.md`)
 
      Examples:
-     ✅ {{GLOBAL_DIR}}/rules/api.md
+     ✅ {{global.directory}}/rules/api.md
      ✅ ./rules/api.md
-     ✅ ../{{GLOBAL_DIR}}/rules/api.md
+     ✅ ../{{global.directory}}/rules/api.md
      ❌ rules/api.md (missing prefix)
      ```
 
@@ -154,7 +154,7 @@ After fixing, run this command again.
    No related documents found.
 
    Based on your request, I suggest creating:
-   **{{GLOBAL_DIR}}/[suggested-path]**
+   **{{global.directory}}/[suggested-path]**
 
    Create at this path? (yes / or provide custom path)
    ```
@@ -276,7 +276,7 @@ Your document is ready, just not indexed by AI yet.
 
 # What Global Context Does
 
-Global contexts are project-wide Markdown documents stored in `{{GLOBAL_DIR}}/`:
+Global contexts are project-wide Markdown documents stored in `{{global.directory}}/`:
 
 - **Architecture** - System design, diagrams, architectural decisions
 - **Rules** - Coding standards, conventions, best practices
@@ -308,7 +308,7 @@ Global contexts are project-wide Markdown documents stored in `{{GLOBAL_DIR}}/`:
 
 1. **Always validate first** - Catch issues before creating/updating, block on errors
 
-2. **Path format is strict** - Must use `{{GLOBAL_DIR}}/` prefix or relative paths (`./`, `../`)
+2. **Path format is strict** - Must use `{{global.directory}}/` prefix or relative paths (`./`, `../`)
 
 3. **Check for duplicates** - Warn even when explicit path is provided
 
@@ -326,7 +326,7 @@ Global contexts are project-wide Markdown documents stored in `{{GLOBAL_DIR}}/`:
 
 # Reference Documents
 
-- **Global registry**: `{{GLOBAL_DIR}}/global-context-registry.yml` - Index of all global contexts
+- **Global registry**: `{{global.directory}}/global-context-registry.yml` - Index of all global contexts
 - **Configuration**: `ctx.config.yaml` - Frontmatter and behavior settings
 
 ---
@@ -335,7 +335,7 @@ Global contexts are project-wide Markdown documents stored in `{{GLOBAL_DIR}}/`:
 
 ## Example 1: Path with content (CREATE with duplicate warning)
 
-**User:** `/ctx.global {{GLOBAL_DIR}}/rules/typescript.md Use union types instead of enums`
+**User:** `/ctx.global {{global.directory}}/rules/typescript.md Use union types instead of enums`
 
 **AI:**
 ```markdown
@@ -344,17 +344,17 @@ Global contexts are project-wide Markdown documents stored in `{{GLOBAL_DIR}}/`:
 
 ⚠️ Similar documents already exist:
 
-• {{GLOBAL_DIR}}/rules/coding-style.md - TypeScript coding standards and conventions
-• {{GLOBAL_DIR}}/rules/type-safety.md - Type safety guidelines for the project
+• {{global.directory}}/rules/coding-style.md - TypeScript coding standards and conventions
+• {{global.directory}}/rules/type-safety.md - Type safety guidelines for the project
 
-Continue creating {{GLOBAL_DIR}}/rules/typescript.md?
+Continue creating {{global.directory}}/rules/typescript.md?
 ```
 
 **User:** `yes`
 
 **AI:**
 ```markdown
-## 📝 Creating: {{GLOBAL_DIR}}/rules/typescript.md
+## 📝 Creating: {{global.directory}}/rules/typescript.md
 
 ---
 when: Writing TypeScript code
@@ -407,11 +407,11 @@ Proceed with this change?
 [Writes file]
 [Runs: ctx sync --global]
 
-✓ Created {{GLOBAL_DIR}}/rules/typescript.md
+✓ Created {{global.directory}}/rules/typescript.md
 ✓ Synced global context registry
 
 Summary:
-• Document: {{GLOBAL_DIR}}/rules/typescript.md
+• Document: {{global.directory}}/rules/typescript.md
 • Added guidelines preferring union types over enums with examples
 ```
 
@@ -428,9 +428,9 @@ Summary:
 
 ## Found related documents for: "Add Redis caching TTL guidelines"
 
-1. {{GLOBAL_DIR}}/architecture/caching-strategy.md - Redis caching architecture and patterns
-2. {{GLOBAL_DIR}}/rules/performance.md - Performance optimization rules and practices
-3. {{GLOBAL_DIR}}/architecture/backend.md - Backend services architecture overview
+1. {{global.directory}}/architecture/caching-strategy.md - Redis caching architecture and patterns
+2. {{global.directory}}/rules/performance.md - Performance optimization rules and practices
+3. {{global.directory}}/architecture/backend.md - Backend services architecture overview
 
 Which document should I work on? (enter number or 'new' for new document)
 ```
@@ -439,9 +439,9 @@ Which document should I work on? (enter number or 'new' for new document)
 
 **AI:**
 ```markdown
-[Reads {{GLOBAL_DIR}}/architecture/caching-strategy.md]
+[Reads {{global.directory}}/architecture/caching-strategy.md]
 
-## 📝 Updating: {{GLOBAL_DIR}}/architecture/caching-strategy.md
+## 📝 Updating: {{global.directory}}/architecture/caching-strategy.md
 
 [Shows current content with new TTL section added:]
 
@@ -479,11 +479,11 @@ Proceed with this change?
 
 **AI:**
 ```markdown
-✓ Updated {{GLOBAL_DIR}}/architecture/caching-strategy.md
+✓ Updated {{global.directory}}/architecture/caching-strategy.md
 ✓ Synced global context registry
 
 Summary:
-• Document: {{GLOBAL_DIR}}/architecture/caching-strategy.md
+• Document: {{global.directory}}/architecture/caching-strategy.md
 • Added Redis TTL configuration guidelines with recommended values
 ```
 
@@ -491,7 +491,7 @@ Summary:
 
 ## Example 3: Validation error blocks execution
 
-**User:** `/ctx.global {{GLOBAL_DIR}}/rules/new-rule.md Add database guidelines`
+**User:** `/ctx.global {{global.directory}}/rules/new-rule.md Add database guidelines`
 
 **AI:**
 ```markdown
@@ -500,12 +500,12 @@ Summary:
 ❌ Validation errors found
 
 Errors:
-• {{GLOBAL_DIR}}/architecture/old-system.md - Target file not found (referenced in registry)
-• {{GLOBAL_DIR}}/broken.yml - Invalid YAML syntax at line 15
+• {{global.directory}}/architecture/old-system.md - Target file not found (referenced in registry)
+• {{global.directory}}/broken.yml - Invalid YAML syntax at line 15
 
 Please fix these errors manually before proceeding:
-1. Remove {{GLOBAL_DIR}}/architecture/old-system.md from registry or restore the file
-2. Fix YAML syntax error in {{GLOBAL_DIR}}/broken.yml (check line 15 for unclosed bracket)
+1. Remove {{global.directory}}/architecture/old-system.md from registry or restore the file
+2. Fix YAML syntax error in {{global.directory}}/broken.yml (check line 15 for unclosed bracket)
 
 After fixing, run this command again.
 ```
@@ -514,7 +514,7 @@ After fixing, run this command again.
 
 ## Example 4: Sync failure with guidance
 
-**User:** `/ctx.global {{GLOBAL_DIR}}/processes/deploy.md Document our CI/CD pipeline`
+**User:** `/ctx.global {{global.directory}}/processes/deploy.md Document our CI/CD pipeline`
 
 **AI:**
 ```markdown
@@ -524,8 +524,8 @@ After fixing, run this command again.
 
 ⚠️ File written but sync failed
 
-✓ File created: {{GLOBAL_DIR}}/processes/deploy.md
-❌ Sync error: Invalid frontmatter in {{GLOBAL_DIR}}/rules/api.md: missing required field 'what'
+✓ File created: {{global.directory}}/processes/deploy.md
+❌ Sync error: Invalid frontmatter in {{global.directory}}/rules/api.md: missing required field 'what'
 
 The document was written successfully, but the registry update failed.
 
@@ -536,7 +536,7 @@ Possible causes:
 
 Next steps:
 1. Check the error message above
-2. If mentioned, fix issues in: {{GLOBAL_DIR}}/rules/api.md
+2. If mentioned, fix issues in: {{global.directory}}/rules/api.md
 3. Run: ctx sync --global
 4. If issue persists, check ctx.config.yaml settings
 
@@ -557,13 +557,13 @@ Your document is ready, just not indexed by AI yet.
 ❌ Invalid path format: `rules/security.md`
 
 Path must include:
-- `{{GLOBAL_DIR}}/` prefix (e.g., `{{GLOBAL_DIR}}/rules/security.md`)
-- OR relative path (e.g., `./rules/security.md` or `../{{GLOBAL_DIR}}/rules/security.md`)
+- `{{global.directory}}/` prefix (e.g., `{{global.directory}}/rules/security.md`)
+- OR relative path (e.g., `./rules/security.md` or `../{{global.directory}}/rules/security.md`)
 
 Examples:
-✅ {{GLOBAL_DIR}}/rules/security.md
+✅ {{global.directory}}/rules/security.md
 ✅ ./rules/security.md
-✅ ../{{GLOBAL_DIR}}/rules/security.md
+✅ ../{{global.directory}}/rules/security.md
 ❌ rules/security.md (missing prefix)
 
 Please provide a valid path format.
@@ -583,16 +583,16 @@ Please provide a valid path format.
 No related documents found.
 
 Based on your request, I suggest creating:
-**{{GLOBAL_DIR}}/rules/graphql-schema.md**
+**{{global.directory}}/rules/graphql-schema.md**
 
 Create at this path? (yes / or provide custom path)
 ```
 
-**User:** `{{GLOBAL_DIR}}/architecture/graphql.md`
+**User:** `{{global.directory}}/architecture/graphql.md`
 
 **AI:**
 ```markdown
-## 📝 Creating: {{GLOBAL_DIR}}/architecture/graphql.md
+## 📝 Creating: {{global.directory}}/architecture/graphql.md
 
 ---
 when: Designing GraphQL schemas
@@ -604,7 +604,7 @@ not_when: Using REST APIs
 
 ## Schema-First Development
 
-Start with schema definition before {{GLOBAL_DIR}}...
+Start with schema definition before {{global.directory}}...
 
 [Full document content]
 

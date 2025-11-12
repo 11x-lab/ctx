@@ -184,6 +184,11 @@ async function copyTemplates(sourceDir: string, destDir: string): Promise<void> 
       continue;
     }
 
+    if (entry.name === "ctx.config.yaml") {
+      continue;
+    }
+
+
     if (entry.isFile()) {
       await fs.copyFile(sourcePath, destPath);
     }

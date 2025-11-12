@@ -3,7 +3,7 @@ import path from 'path';
 import chalk from 'chalk';
 import { Platform } from './types.js';
 import { getAICommandTemplates, loadAICommandTemplate } from '../templates.js';
-import { loadConfig } from '../config.js';
+import { loadConfig, flattenConfig } from '../config.js';
 
 /**
  * Claude Code platform implementation
@@ -38,10 +38,9 @@ export class ClaudeCodePlatform implements Platform {
     // Create .claude/commands directory
     await fs.mkdir(commandsDir, { recursive: true });
 
-    // Load config to get global directory and plan path
+    // Load config and flatten to placeholders
     const config = await loadConfig(this.projectRoot);
-    const globalDir = config.global.directory;
-    const planPath = config.plan?.path || 'plan.md';
+    const placeholders = flattenConfig(config);
 
     // Get all AI command templates
     const templates = await getAICommandTemplates();
@@ -55,9 +54,11 @@ export class ClaudeCodePlatform implements Platform {
     for (const templateName of templates) {
       let content = await loadAICommandTemplate(templateName);
 
-      // Substitute placeholders with actual config values
-      content = content.replace(/\{\{GLOBAL_DIR\}\}/g, globalDir);
-      content = content.replace(/\{\{PLAN_PATH\}\}/g, planPath);
+      // Substitute all config placeholders
+      for (const [key, value] of Object.entries(placeholders)) {
+        const placeholder = `{{${key}}}`;
+        content = content.replaceAll(placeholder, value);
+      }
 
       const targetPath = path.join(commandsDir, `ctx.${templateName}`);
       await fs.writeFile(targetPath, content, 'utf-8');
@@ -75,10 +76,9 @@ export class ClaudeCodePlatform implements Platform {
       throw new Error('AI commands not installed. Run `ctx init` first.');
     }
 
-    // Load config to get global directory and plan path
+    // Load config and flatten to placeholders
     const config = await loadConfig(this.projectRoot);
-    const globalDir = config.global.directory;
-    const planPath = config.plan?.path || 'plan.md';
+    const placeholders = flattenConfig(config);
 
     const templates = await getAICommandTemplates();
     let updated = 0;
@@ -87,9 +87,11 @@ export class ClaudeCodePlatform implements Platform {
       const targetPath = path.join(commandsDir, `ctx.${templateName}`);
       let templateContent = await loadAICommandTemplate(templateName);
 
-      // Substitute placeholders with actual config values
-      templateContent = templateContent.replace(/\{\{GLOBAL_DIR\}\}/g, globalDir);
-      templateContent = templateContent.replace(/\{\{PLAN_PATH\}\}/g, planPath);
+      // Substitute all config placeholders
+      for (const [key, value] of Object.entries(placeholders)) {
+        const placeholder = `{{${key}}}`;
+        templateContent = templateContent.replaceAll(placeholder, value);
+      }
 
       // Check if file exists and content is different
       try {
