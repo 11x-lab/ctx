@@ -90,14 +90,39 @@ export function getAICommandsTemplateDir(): string {
 }
 
 /**
- * Get list of all AI command templates
+ * Get list of all AI command templates (recursively scan subdirectories)
+ * Returns paths with subdirectory prefix (e.g., 'work/plan.md', 'work/commit.md')
  */
 export async function getAICommandTemplates(): Promise<string[]> {
   const templatesDir = getAICommandsTemplateDir();
 
+  async function scanDirectory(dir: string, prefix: string = ''): Promise<string[]> {
+    const results: string[] = [];
+
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+        const fullPath = path.join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          // Recursively scan subdirectories
+          const subResults = await scanDirectory(fullPath, relativePath);
+          results.push(...subResults);
+        } else if (entry.isFile() && entry.name.endsWith('.md')) {
+          results.push(relativePath);
+        }
+      }
+    } catch (error) {
+      throw new Error(`Failed to scan directory ${dir}: ${error}`);
+    }
+
+    return results;
+  }
+
   try {
-    const files = await fs.readdir(templatesDir);
-    return files.filter(f => f.endsWith('.md'));
+    return await scanDirectory(templatesDir);
   } catch (error) {
     throw new Error(`Failed to read AI command templates: ${error}`);
   }

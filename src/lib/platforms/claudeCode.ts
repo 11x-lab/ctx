@@ -60,7 +60,10 @@ export class ClaudeCodePlatform implements Platform {
         content = content.replaceAll(placeholder, value);
       }
 
-      const targetPath = path.join(commandsDir, `ctx.${templateName}`);
+      // Convert path separators to dots for command name
+      // e.g., 'work/plan.md' -> 'ctx.work.plan.md'
+      const commandName = templateName.replace(/\//g, '.');
+      const targetPath = path.join(commandsDir, `ctx.${commandName}`);
       await fs.writeFile(targetPath, content, 'utf-8');
     }
 
@@ -84,7 +87,10 @@ export class ClaudeCodePlatform implements Platform {
     let updated = 0;
 
     for (const templateName of templates) {
-      const targetPath = path.join(commandsDir, `ctx.${templateName}`);
+      // Convert path separators to dots for command name
+      // e.g., 'work/plan.md' -> 'ctx.work.plan.md'
+      const commandName = templateName.replace(/\//g, '.');
+      const targetPath = path.join(commandsDir, `ctx.${commandName}`);
       let templateContent = await loadAICommandTemplate(templateName);
 
       // Substitute all config placeholders

@@ -23,8 +23,11 @@ export interface Config {
     patterns: string | string[];
     ignore: string[];
   };
-  plan?: {
-    path: string;
+  work?: {
+    plan?: {
+      path: string;
+    };
+    directory?: string;
   };
   frontmatter: FrontmatterConfig;
 }

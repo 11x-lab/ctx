@@ -1,6 +1,6 @@
 ---
 description: Create a planning document from an issue URL
-argument-hint: <url> [requirements]
+argument-hint: <url> [requirements] [--no-ask] [--no-sync]
 allowed-tools: [Read, Write, Edit, TodoWrite, Bash, WebFetch, Glob, Grep, SlashCommand, mcp__linear-server__get_issue, mcp__linear-server__create_comment, mcp__github__*]
 ---
 
@@ -10,7 +10,7 @@ Create a comprehensive planning document based on the issue at: **$ARGUMENTS**
 This command will:
 1. Create a todo list to track progress
 2. Fetch issue details from the provided URL (GitHub, Linear, or generic)
-3. Create a local `{{plan.path}}` file with structured frontmatter
+3. Create a local `plan.md` file with structured frontmatter
 4. Load relevant contexts once
 5. Conduct a Q&A session to gather requirements
 6. Generate a high-level implementation plan
@@ -28,14 +28,18 @@ This command will:
 Use TodoWrite to create todos for:
 1. Get git branch and parse arguments
 2. Fetch issue from URL
-3. Create {{plan.path}} template
+3. Create plan.md template
 4. Load relevant contexts
-5. Conduct Q&A session
-6. Fill Q&A in {{plan.path}}
+5. Conduct Q&A session _(skip if `--no-ask` flag is present)_
+6. Fill Q&A in plan.md
 7. Generate implementation plan
-8. Update status to Reviewed
-9. Sync plan to issue
+8. Update status (Draft or Reviewed)
+9. Sync plan to issue _(skip if `--no-sync` flag is present)_
 10. Show final summary
+
+**Note**: Adjust todo list based on flags:
+- If `--no-ask`: Skip or mark Q&A-related todos as not applicable
+- If `--no-sync`: Skip or mark sync-related todo as not applicable
 
 **Mark each todo as completed** as you finish each step.
 
@@ -57,11 +61,24 @@ If not in a git repository → Use `"not-in-git-repo"` as branch name.
 
 Extract from `$ARGUMENTS`:
 - **URL** (required): First argument (e.g., `https://github.com/user/repo/issues/123`)
-- **Requirements** (optional): Remaining text after URL
+- **Requirements** (optional): Text after URL (but before flags)
+- **Flags** (optional):
+  - `--no-ask`: Skip Q&A session, generate plan automatically
+  - `--no-sync`: Skip syncing plan back to the issue
+
+**Parsing Logic:**
+1. Extract URL (first argument that starts with `http://` or `https://`)
+2. Extract flags (arguments starting with `--`)
+3. Extract requirements (remaining text between URL and flags)
 
 **Validation:**
-- If no URL provided → Show error: "Error: URL is required. Usage: /ctx.plan <url> [requirements]"
+- If no URL provided → Show error: "Error: URL is required. Usage: /ctx.plan <url> [requirements] [--no-ask] [--no-sync]"
 - If URL is invalid → Show error: "Error: Invalid URL format"
+- If unknown flag provided → Show warning: "Warning: Unknown flag '<flag>' will be ignored"
+
+**Store for later use:**
+- `use_interactive_mode = !has_flag("--no-ask")`
+- `should_sync = !has_flag("--no-sync")`
 
 ---
 
@@ -102,9 +119,9 @@ WebFetch({
 
 ---
 
-## Step 4: Create {{plan.path}} with Template
+## Step 4: Create plan.md with Template
 
-**Write to**: `{{plan.path}}`
+**Write to**: `plan.md`
 
 **Template:**
 
@@ -127,7 +144,7 @@ status: In Progress
 
 **Show confirmation:**
 ```
-✓ Created {{plan.path}}
+✓ Created plan.md
   - Issue: <issue-title>
   - Branch: <branch-name>
   - Status: In Progress
@@ -159,6 +176,10 @@ Issue: "Implement OAuth2 Social Login"
 ---
 
 ## Step 6: Conduct Q&A Session
+
+**Check**: If `--no-ask` flag is present, **skip this step entirely** and proceed to Step 7.
+
+---
 
 **Goal**: Ask comprehensive questions to understand the **Scope & Impact** and **Design Overview** of this change.
 
@@ -199,9 +220,44 @@ Please take your time to provide detailed responses to all questions above.
 
 ---
 
-## Step 7: Fill Q&A Section in {{plan.path}}
+## Step 7: Fill Q&A Section in plan.md
 
-**After receiving answers**, update `{{plan.path}}` with the actual Q&A conversation.
+### If `--no-ask` flag is present:
+
+**Create a minimal Q&A section** indicating that interactive Q&A was skipped:
+
+```markdown
+# Q&A
+
+_Q&A session skipped with `--no-ask` flag. Plan generated from issue description and loaded contexts._
+
+To add detailed requirements later, you can:
+1. Manually edit this section with answers to the planning questions
+2. Re-run without `--no-ask` flag for interactive planning
+
+### Planning Questions (for reference)
+1. What is in-scope for this change?
+2. What is out-of-scope for this change?
+3. What existing code, libraries, or infrastructure can be reused?
+4. Which modules/files/classes/functions will be affected?
+5. How will the architecture or system flow change?
+6. What are the main interfaces?
+7. What data model changes are needed?
+8. Are there external systems to integrate with?
+9. Will you write test code for this feature?
+```
+
+**Show confirmation:**
+```
+ℹ Skipped Q&A session (--no-ask flag)
+✓ Created plan.md with placeholder Q&A section
+```
+
+---
+
+### If `--no-ask` flag is NOT present:
+
+**After receiving answers**, update `plan.md` with the actual Q&A conversation.
 
 **Record the complete Q&A exchange:**
 - Copy the questions you asked
@@ -238,7 +294,7 @@ A: [User's actual answer here...]
 
 **Show confirmation:**
 ```
-✓ Updated {{plan.path}} with Q&A conversation
+✓ Updated plan.md with Q&A conversation
 ```
 
 ---
@@ -299,11 +355,17 @@ A: [User's actual answer here...]
 1. **High-level only** - No detailed code implementation steps
 2. **Phase-based** - Group related steps into logical phases
 3. **Checkbox format** - Each task should be actionable
-4. **Include testing phase** - Only if user answered "Yes" to test question
-5. **Reference Q&A** - Use Q&A responses to inform plan structure
+4. **Include testing phase** - Only if user answered "Yes" to test question (or if `--no-ask`, include generic testing phase)
+5. **Reference Q&A** - Use Q&A responses to inform plan structure (if available)
 6. **Reference loaded contexts** - Use context knowledge to suggest patterns
+7. **If `--no-ask` mode**: Generate plan based on:
+   - Issue title and description
+   - Loaded contexts from Step 5
+   - Common patterns and best practices
+   - Keep plan more generic and template-like
+   - Add notes suggesting user should review and customize
 
-**Update {{plan.path}}** with generated implementation plan.
+**Update plan.md** with generated implementation plan.
 
 **Show confirmation:**
 ```
@@ -314,7 +376,32 @@ A: [User's actual answer here...]
 
 ## Step 9: Update Status to Reviewed
 
-**Update {{plan.path}} status** from "In Progress" to "Reviewed".
+**Update plan.md status** based on whether Q&A was conducted:
+
+### If `--no-ask` flag is present:
+
+Set status to **"Draft"** (requires user review and refinement):
+
+```markdown
+---
+issue_link: <URL>
+git_branch: <branch-name>
+created_at: <ISO-timestamp>
+status: Draft
+---
+```
+
+**Show confirmation:**
+```
+✓ Updated status to: Draft
+ℹ Plan generated without Q&A - please review and refine as needed
+```
+
+---
+
+### If `--no-ask` flag is NOT present:
+
+Set status to **"Reviewed"** (Q&A completed, plan ready):
 
 ```markdown
 ---
@@ -334,6 +421,10 @@ status: Reviewed
 
 ## Step 10: Sync Plan to Issue (GitHub/Linear)
 
+**Check**: If `--no-sync` flag is present, **skip this step entirely** and proceed to Step 11.
+
+---
+
 **Goal**: Post the plan as a comment on the original issue.
 
 ### GitHub Issues
@@ -341,7 +432,7 @@ status: Reviewed
 ```bash
 gh api repos/<owner>/<repo>/issues/<number>/comments \
   -X POST \
-  -f body="$(cat {{plan.path}})"
+  -f body="$(cat plan.md)"
 ```
 
 **Confirmation:**
@@ -354,7 +445,7 @@ gh api repos/<owner>/<repo>/issues/<number>/comments \
 ```typescript
 mcp__linear-server__create_comment({
   issueId: "<issue-id>",
-  body: "<{{plan.path}}-content>"
+  body: "<plan.md-content>"
 })
 ```
 
@@ -367,9 +458,9 @@ mcp__linear-server__create_comment({
 
 **Show message:**
 ```
-ℹ Plan created in {{plan.path}}
+ℹ Plan created in plan.md
   Cannot auto-sync to generic URLs.
-  Please manually copy {{plan.path}} content to the issue if needed.
+  Please manually copy plan.md content to the issue if needed.
 ```
 
 ---
@@ -388,7 +479,7 @@ mcp__linear-server__create_comment({
 - Link: <issue-link>
 - Branch: <git-branch>
 - Status: Reviewed
-- File: {{plan.path}}
+- File: plan.md
 
 **What's in the plan:**
 - ✓ Q&A responses (scope, design, testing)
@@ -397,7 +488,7 @@ mcp__linear-server__create_comment({
 - ✓ Reusable resources identified
 
 **Next Steps:**
-1. Review the plan in `{{plan.path}}`
+1. Review the plan in `plan.md`
 2. Make any adjustments if needed
 3. Start implementation following the phases
 4. Update status to "Completed" when done
@@ -412,16 +503,20 @@ mcp__linear-server__create_comment({
 1. **Create todos first** - Use TodoWrite to track progress
 2. **Always get git branch first** - Include in frontmatter
 3. **Validate URL** - Must be provided and valid
-4. **Auto-detect URL type** - GitHub, Linear, or generic
-5. **Load contexts once** - Use `/ctx.load` based on issue content
-6. **Ask ALL questions at once** - Don't ask iteratively
-7. **Always ask about tests** - Include in Q&A
-8. **High-level plans only** - Phases and steps, not detailed code
-9. **Include test phase conditionally** - Only if user wants tests
-10. **Update status to Reviewed** - After implementation plan is generated
-11. **Sync to issue** - Post plan as comment (GitHub/Linear only)
-12. **{{plan.path}} is local** - Not committed (gitignored)
-13. **Status progression** - In Progress → Reviewed → Completed (manual)
+4. **Parse flags early** - Extract `--no-ask` and `--no-sync` in Step 2
+5. **Auto-detect URL type** - GitHub, Linear, or generic
+6. **Load contexts once** - Use `/ctx.load` based on issue content
+7. **Ask ALL questions at once** - Don't ask iteratively (skip if `--no-ask`)
+8. **Always ask about tests** - Include in Q&A (unless `--no-ask`)
+9. **High-level plans only** - Phases and steps, not detailed code
+10. **Include test phase conditionally** - Based on user answer or generically for `--no-ask`
+11. **Update status appropriately** - "Draft" for `--no-ask`, "Reviewed" for interactive Q&A
+12. **Sync to issue** - Post plan as comment (GitHub/Linear only, skip if `--no-sync`)
+13. **plan.md is local** - Not committed (gitignored)
+14. **Status progression** - In Progress → Draft/Reviewed → Completed (manual)
+15. **Flag behavior**:
+    - `--no-ask`: Skip Q&A, generate plan from issue + contexts, status = Draft
+    - `--no-sync`: Skip syncing plan back to issue platform
 
 ---
 
@@ -456,9 +551,9 @@ Include a risks section if warranted:
 
 # Reference
 
-- Local registry: `{{global.directory}}/local-context-registry.yml`
-- Global registry: `{{global.directory}}/global-context-registry.yml`
-- Plan file: `{{plan.path}}` (gitignored)
+- Local registry: `ctx/local-context-registry.yml`
+- Global registry: `ctx/global-context-registry.yml`
+- Plan file: `plan.md` (gitignored)
 - Keep contexts updated: `/ctx.sync`
 - Validate contexts: `/ctx.validate`
 - Load contexts: `/ctx.load <description>`

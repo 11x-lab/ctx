@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import YAML from 'yaml';
 import { getPlatform, isPlatformSupported } from '../lib/platforms/index.js';
 import { createConfigFile } from '../lib/config.js';
+import { addToGitignore } from '../lib/fileUtils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,6 +144,20 @@ Feel free to create your own structure that fits your project needs.
     if (isPlatformSupported(editor)) {
       const platform = getPlatform(editor);
       await platform.install();
+    }
+
+    // Add work directory to .gitignore
+    const workDir = config.work?.directory || '.worktrees';
+    const workDirAdded = await addToGitignore(projectRoot, workDir);
+    if (workDirAdded) {
+      console.log(chalk.green(`✓ Added ${workDir} to .gitignore`));
+    }
+
+    // Add work plan path to .gitignore
+    const planPath = config.work?.plan?.path || 'plan.md';
+    const planAdded = await addToGitignore(projectRoot, planPath);
+    if (planAdded) {
+      console.log(chalk.green(`✓ Added ${planPath} to .gitignore`));
     }
 
     console.log(chalk.blue.bold('\n✨ Initialization complete!\n'));

@@ -5,7 +5,7 @@ allowed-tools: [Read, Bash, TodoWrite]
 ---
 
 # Task
-Create a commit with conventional commit format (emoji + type + message) and include issue link from `plan.md` if available.
+Create a commit with conventional commit format (emoji + type + message). If `{{work.plan.path}}` exists, include issue link from its frontmatter.
 
 ---
 
@@ -26,7 +26,7 @@ Run `git status`. If no staged files, run `git add .`
 
 ## 3. Analyze Changes
 
-Read `plan.md` for issue link (frontmatter: `issue_link`).
+Check if `{{work.plan.path}}` exists. If it does, read it for issue link (frontmatter: `issue_link`). If not, skip this step.
 
 Run `git diff --cached` to analyze changes. Determine:
 - Should changes be split into multiple commits? (multiple unrelated concerns, different types)
@@ -126,7 +126,7 @@ Select appropriate type based on changes:
 
 - **First line**: <72 characters, present tense, imperative mood ("add" not "added")
 - **Splitting commits**: Suggest split if changes have multiple unrelated concerns
-- **Issue link**: Include if found in `plan.md` frontmatter
+- **Issue link**: Include only if `{{work.plan.path}}` exists and has `issue_link` in frontmatter
 - **Use TodoWrite**: Track progress through steps
 - **Verify**: Show `git log -1` after commit
 

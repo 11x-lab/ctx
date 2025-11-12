@@ -1,6 +1,7 @@
 import chalk from 'chalk';
-import { isProjectInitialized } from '../lib/fileUtils.js';
+import { isProjectInitialized, addToGitignore } from '../lib/fileUtils.js';
 import { ClaudeCodePlatform } from '../lib/platforms/claudeCode.js';
+import { loadConfig } from '../lib/config.js';
 
 /**
  * Refresh AI commands by re-installing them with current config
@@ -29,6 +30,21 @@ export async function refreshCommand() {
     } else {
       console.log(chalk.green(`✓ Refreshed ${updated} AI command(s)`));
       console.log(chalk.gray('  AI commands now reflect current ctx.config.yaml settings'));
+    }
+
+    // Add work directory to .gitignore if not already present
+    const config = await loadConfig(projectRoot);
+    const workDir = config.work?.directory || '.worktrees';
+    const workDirAdded = await addToGitignore(projectRoot, workDir);
+    if (workDirAdded) {
+      console.log(chalk.green(`✓ Added ${workDir} to .gitignore`));
+    }
+
+    // Add work plan path to .gitignore if not already present
+    const planPath = config.work?.plan?.path || 'plan.md';
+    const planAdded = await addToGitignore(projectRoot, planPath);
+    if (planAdded) {
+      console.log(chalk.green(`✓ Added ${planPath} to .gitignore`));
     }
   } catch (error) {
     console.error(chalk.red(`✗ Error: ${error instanceof Error ? error.message : String(error)}`));
