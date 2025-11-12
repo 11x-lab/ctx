@@ -104,7 +104,7 @@ WebFetch({
 
 ## Step 4: Create plan.md with Template
 
-**Write to**: `plan.md` (project root)
+**Write to**: `plan.md`
 
 **Template:**
 
@@ -420,7 +420,7 @@ mcp__linear-server__create_comment({
 9. **Include test phase conditionally** - Only if user wants tests
 10. **Update status to Reviewed** - After implementation plan is generated
 11. **Sync to issue** - Post plan as comment (GitHub/Linear only)
-12. **Plan.md is local** - Not committed (gitignored)
+12. **plan.md is local** - Not committed (gitignored)
 13. **Status progression** - In Progress → Reviewed → Completed (manual)
 
 ---
@@ -458,7 +458,7 @@ Include a risks section if warranted:
 
 - Local registry: `ctx/local-context-registry.yml`
 - Global registry: `ctx/global-context-registry.yml`
-- Plan file: `plan.md` (project root, gitignored)
+- Plan file: `plan.md` (gitignored)
 - Keep contexts updated: `/ctx.sync`
 - Validate contexts: `/ctx.validate`
 - Load contexts: `/ctx.load <description>`

@@ -38,9 +38,10 @@ export class ClaudeCodePlatform implements Platform {
     // Create .claude/commands directory
     await fs.mkdir(commandsDir, { recursive: true });
 
-    // Load config to get global directory
+    // Load config to get global directory and plan path
     const config = await loadConfig(this.projectRoot);
     const globalDir = config.global.directory;
+    const planPath = config.plan?.path || 'plan.md';
 
     // Get all AI command templates
     const templates = await getAICommandTemplates();
@@ -54,8 +55,9 @@ export class ClaudeCodePlatform implements Platform {
     for (const templateName of templates) {
       let content = await loadAICommandTemplate(templateName);
 
-      // Substitute {{GLOBAL_DIR}} placeholder with actual global directory
+      // Substitute placeholders with actual config values
       content = content.replace(/\{\{GLOBAL_DIR\}\}/g, globalDir);
+      content = content.replace(/\{\{PLAN_PATH\}\}/g, planPath);
 
       const targetPath = path.join(commandsDir, `ctx.${templateName}`);
       await fs.writeFile(targetPath, content, 'utf-8');
@@ -73,9 +75,10 @@ export class ClaudeCodePlatform implements Platform {
       throw new Error('AI commands not installed. Run `ctx init` first.');
     }
 
-    // Load config to get global directory
+    // Load config to get global directory and plan path
     const config = await loadConfig(this.projectRoot);
     const globalDir = config.global.directory;
+    const planPath = config.plan?.path || 'plan.md';
 
     const templates = await getAICommandTemplates();
     let updated = 0;
@@ -84,8 +87,9 @@ export class ClaudeCodePlatform implements Platform {
       const targetPath = path.join(commandsDir, `ctx.${templateName}`);
       let templateContent = await loadAICommandTemplate(templateName);
 
-      // Substitute {{GLOBAL_DIR}} placeholder with actual global directory
+      // Substitute placeholders with actual config values
       templateContent = templateContent.replace(/\{\{GLOBAL_DIR\}\}/g, globalDir);
+      templateContent = templateContent.replace(/\{\{PLAN_PATH\}\}/g, planPath);
 
       // Check if file exists and content is different
       try {

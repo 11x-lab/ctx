@@ -27,6 +27,9 @@ export const DEFAULT_CONFIG: Config = {
       '*-context-registry.yml',  // System-generated registry files
     ],
   },
+  plan: {
+    path: 'plan.md',
+  },
   frontmatter: {
     local: 'optional',
     global: 'optional',
@@ -62,6 +65,9 @@ export async function loadConfig(projectRoot: string): Promise<Config> {
           ...DEFAULT_CONFIG.global.ignore,
           ...(userConfig.global?.ignore || []),
         ],
+      },
+      plan: {
+        path: userConfig.plan?.path || DEFAULT_CONFIG.plan!.path,
       },
       frontmatter: {
         local: userConfig.frontmatter?.local || DEFAULT_CONFIG.frontmatter.local,
