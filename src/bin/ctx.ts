@@ -1,18 +1,27 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { initCommand } from '../commands/init.js';
 import { createCommand } from '../commands/create.js';
 import { syncCommand } from '../commands/sync.js';
 import { validateCommand } from '../commands/validate.js';
 import { refreshCommand } from '../commands/refresh.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(
+  readFileSync(join(__dirname, '../../package.json'), 'utf-8')
+);
+
 const program = new Command();
 
 program
   .name('ctx')
   .description('Context-driven development CLI tool')
-  .version('0.1.0');
+  .version(packageJson.version);
 
 program
   .command('init')
