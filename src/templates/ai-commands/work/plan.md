@@ -1,7 +1,7 @@
 ---
 description: Create a planning document from an issue URL
-argument-hint: <url> [requirements] [--no-ask] [--no-sync]
-allowed-tools: [Read, Write, Edit, TodoWrite, Bash, WebFetch, Glob, Grep, SlashCommand, mcp__linear-server__get_issue, mcp__linear-server__create_comment, mcp__github__*]
+argument-hint: <url> [requirements] [--no-ask]
+allowed-tools: [Read, Write, Edit, TodoWrite, Bash, WebFetch, Glob, Grep, SlashCommand, mcp__linear-server__get_issue, mcp__linear-server__list_comments, mcp__github__*]
 ---
 
 # Task
@@ -9,13 +9,15 @@ Create a comprehensive planning document based on the issue at: **$ARGUMENTS**
 
 This command will:
 1. Create a todo list to track progress
-2. Fetch issue details from the provided URL (GitHub, Linear, or generic)
-3. Create a local `{{work.plan.path}}` file with structured frontmatter
-4. Load relevant contexts once
-5. Conduct a Q&A session to gather requirements
-6. Generate a high-level implementation plan
-7. Update status to "Reviewed"
-8. Sync the plan back to the issue as a comment
+2. Fetch issue details (including comments, images, attachments) from the provided URL
+3. Check if spec or implementation plan already exist in the issue
+4. Create a local `{{work.plan.path}}` file for tracking
+5. Create or validate the **Spec** (WHY and WHAT - business requirements)
+6. Load relevant contexts based on the spec
+7. Generate a **Implementation Plan** (HOW - technical execution)
+8. Provide a final summary
+
+**Note**: `{{work.plan.path}}` is a local artifact for your own tracking. It is gitignored and serves as your workspace.
 
 ---
 
@@ -27,19 +29,16 @@ This command will:
 
 Use TodoWrite to create todos for:
 1. Get git branch and parse arguments
-2. Fetch issue from URL
-3. Create {{work.plan.path}} template
-4. Load relevant contexts
-5. Conduct Q&A session _(skip if `--no-ask` flag is present)_
-6. Fill Q&A in {{work.plan.path}}
-7. Generate implementation plan
-8. Update status (Draft or Reviewed)
-9. Sync plan to issue _(skip if `--no-sync` flag is present)_
-10. Show final summary
+2. Fetch issue from URL (enhanced with comments/images)
+3. Check existing spec/implementation plan in issue
+4. Create {{work.plan.path}} template
+5. Create or validate Spec _(skip questions if `--no-ask` flag is present)_
+6. Load relevant contexts (based on spec)
+7. Generate implementation plan _(auto-generate if `--no-ask` flag is present)_
+8. Show final summary
 
 **Note**: Adjust todo list based on flags:
-- If `--no-ask`: Skip or mark Q&A-related todos as not applicable
-- If `--no-sync`: Skip or mark sync-related todo as not applicable
+- If `--no-ask`: Auto-generate spec and implementation plan without user interaction
 
 **Mark each todo as completed** as you finish each step.
 
@@ -63,8 +62,7 @@ Extract from `$ARGUMENTS`:
 - **URL** (required): First argument (e.g., `https://github.com/user/repo/issues/123`)
 - **Requirements** (optional): Text after URL (but before flags)
 - **Flags** (optional):
-  - `--no-ask`: Skip Q&A session, generate plan automatically
-  - `--no-sync`: Skip syncing plan back to the issue
+  - `--no-ask`: Auto-generate spec and implementation plan without asking questions
 
 **Parsing Logic:**
 1. Extract URL (first argument that starts with `http://` or `https://`)
@@ -72,25 +70,31 @@ Extract from `$ARGUMENTS`:
 3. Extract requirements (remaining text between URL and flags)
 
 **Validation:**
-- If no URL provided → Show error: "Error: URL is required. Usage: /ctx.plan <url> [requirements] [--no-ask] [--no-sync]"
+- If no URL provided → Show error: "Error: URL is required. Usage: /ctx.work.plan <url> [requirements] [--no-ask]"
 - If URL is invalid → Show error: "Error: Invalid URL format"
 - If unknown flag provided → Show warning: "Warning: Unknown flag '<flag>' will be ignored"
 
 **Store for later use:**
 - `use_interactive_mode = !has_flag("--no-ask")`
-- `should_sync = !has_flag("--no-sync")`
 
 ---
 
-## Step 3: Detect URL Type and Fetch Issue
+## Step 3: Enhanced Issue Fetching
 
 ### GitHub URLs
 If URL contains `github.com`:
 
 ```bash
 # Extract issue number from URL
-gh issue view <issue-number> --repo <owner/repo>
+gh issue view <issue-number> --repo <owner/repo> --json title,body,labels,assignees,comments,milestone
 ```
+
+**Parse the response to extract:**
+- Issue title
+- Issue description/body (with markdown formatting)
+- Issue metadata (labels, assignees, milestone)
+- **All comments** (may contain existing spec or implementation plan)
+- **Images/attachments** referenced in body (analyze with Read tool if image URLs are present)
 
 **Alternative**: Use GitHub MCP if available.
 
@@ -100,7 +104,16 @@ If URL contains `linear.app`:
 ```typescript
 // Extract issue ID from URL (e.g., ABC-123)
 mcp__linear-server__get_issue({ id: "<issue-id>" })
+
+// Also fetch comments separately
+mcp__linear-server__list_comments({ issueId: "<issue-id>" })
 ```
+
+**Parse the response to extract:**
+- Issue title
+- Issue description/body (with markdown formatting)
+- **All comments** 
+- **Attachments** (returned by get_issue)
 
 ### Generic URLs
 For all other URLs:
@@ -108,446 +121,346 @@ For all other URLs:
 ```typescript
 WebFetch({
   url: "<url>",
-  prompt: "Extract the main content, title, and description from this page"
+  prompt: "Extract the main content, title, description, and any structured information from this page. Include any images or attachments mentioned."
 })
 ```
 
-**Store:**
+**Store all fetched data:**
 - Issue title
 - Issue description/body
 - Issue metadata (labels, assignees, etc.)
+- **Comments array** (all comments from issue)
+- **Images/attachments** (URLs or content)
+- **Related links** (mentioned in description or comments)
 
 ---
 
-## Step 4: Create {{work.plan.path}} with Template
+## Step 4: Check Existing Spec/Plan in Issue
+
+**Goal**: Determine if spec or implementation plan already exist in the issue to avoid duplicate work.
+
+**Search through:**
+- Issue description/body
+- All comments from Step 3
+
+**Look for these sections:**
+1. **Spec indicators**: Sections titled "Spec", "Specification", "Requirements", "Problem Statement", "User Stories", or similar
+2. **Implementation plan indicators**: Sections titled "Implementation Plan", "Technical Plan", "Phases", or checkboxes with implementation tasks
+
+**Decision tree:**
+
+| Found in Issue | Action | Store |
+|---|---|---|
+| **Both exist** | Ask: 1) Start fresh 2) Skip 3) Cancel | 1: `need_spec=true, need_plan=true` / 2: Exit / 3: Exit |
+| **Spec only** | Ask: Continue to create plan? [y/n] | y: `need_spec=false, need_plan=true` / n: Exit |
+| **Plan only** | Ask: 1) Create spec first 2) Skip to plan 3) Cancel | 1: `need_spec=true, need_plan=false` / 2: `need_spec=false, need_plan=true` / 3: Exit |
+| **Neither** | Ask: Create both? [y/n] | y: `need_spec=true, need_plan=true` / n: Exit |
+
+**If `--no-ask` flag**: Always proceed with `need_spec=true, need_plan=true` without asking.
+
+---
+
+## Step 5: Create {{work.plan.path}} with Template
 
 **Write to**: `{{work.plan.path}}`
 
-**Template:**
+**Simplified Template:**
 
 ```markdown
 ---
 issue_link: <URL>
 git_branch: <branch-name>
 created_at: <ISO-timestamp>
-status: In Progress
 ---
 
-# Q&A
+# Spec
 
-<!-- This section will be filled after the Q&A session -->
+<!-- Will be filled in next step -->
 
 # Implementation Plan
 
-<!-- This section will be filled after context analysis -->
-```
-
-**Show confirmation:**
-```
-✓ Created {{work.plan.path}}
-  - Issue: <issue-title>
-  - Branch: <branch-name>
-  - Status: In Progress
-```
+<!-- Will be filled after contexts are loaded -->
 
 ---
 
-## Step 5: Load Relevant Contexts
+**Note**: This is a local workspace file (gitignored).
+The spec and implementation plan are the core outputs.
+```
 
-**Load contexts** related to the issue using the `/ctx.load` command.
+✓ Created {{work.plan.path}}
 
-**Create search description** from:
+---
+
+## Step 6: Create or Validate Spec
+
+**Goal**: Create spec focusing on WHY and WHAT, not HOW.
+
+**Check from Step 4**: If `need_spec = false`, skip to Step 7.
+
+---
+
+### If `--no-ask` flag:
+Auto-generate spec from issue content (description, comments, images). Add note: "_Auto-generated. Review and refine as needed._"
+
+---
+
+### If interactive mode:
+
+**Step 6.1: Generate draft spec (core sections)**
+
+Analyze issue and generate: Problem Statement, User Stories/Use Cases, Success Criteria.
+
+**Step 6.2: Review core spec with user**
+
+1. **First, output the generated spec to the user** (DO NOT use AskUserQuestion yet):
+
+```markdown
+I've drafted a spec based on the issue:
+
+---
+
+## Problem Statement
+[Generated content]
+
+## User Stories / Use Cases
+[Generated content]
+
+## Success Criteria
+[Generated content]
+
+---
+```
+
+2. **Then, use AskUserQuestion tool** to get feedback:
+
+```
+Does this spec look correct?
+
+Options:
+- 'yes' to proceed
+- 'skip' to use as-is and move forward
+- Provide corrections directly (e.g., "change success criteria to X, add user story Y")
+```
+
+**Handle response:**
+- `yes` → Proceed to Step 6.3
+- `skip` → Proceed to Step 6.3, add note "_User skipped review_"
+- Corrections → Apply changes, **output updated spec to user**, ask for confirmation again
+
+**Step 6.3: Ask about detailed sections**
+
+**Use AskUserQuestion tool**:
+
+```
+Would you like to add more detailed sections to the spec?
+- Scope (in-scope and out-of-scope)
+- Constraints (technical/business/timeline limits)
+- Dependencies (prerequisites, external systems)
+- Context & References
+
+Reply 'yes' to add these sections, or 'no' to skip.
+```
+
+**If yes:**
+1. Generate detailed sections (Scope, Constraints, Dependencies, Context & References)
+2. **Output the detailed sections to user** (show the generated content)
+3. **Then use AskUserQuestion tool** for review (same yes/skip/corrections flow as Step 6.2)
+4. If corrections needed: Apply changes, **output updated sections**, ask for confirmation again
+
+**If no:**
+- Proceed with core spec only
+
+---
+
+### Spec Template
+
+```markdown
+# Spec
+
+## Problem Statement
+[Why, who's affected, pain point]
+
+## User Stories / Use Cases
+[As a X, I want Y so that Z]
+
+## Success Criteria
+- [ ] Measurable outcome 1
+- [ ] Measurable outcome 2
+
+## Scope
+### In Scope
+- [What will be done]
+
+### Out of Scope
+- [What won't be done]
+
+## Constraints
+[Technical/business/timeline limits]
+```
+
+Generate spec and update `{{work.plan.path}}`. ✓ Spec created
+
+---
+
+## Step 7: Load Relevant Contexts
+
+**Goal**: Load contexts that will inform the implementation plan, now that we have a clear spec.
+
+**Create search description from:**
+- **Spec content** (problem statement, scope, requirements)
 - Issue title
 - Issue labels/tags
-- Optional requirements argument
+- Optional requirements argument from Step 2
 - Key technical terms from description
 
-**Run:**
-```bash
-/ctx.load <search-description>
-```
+**Run:** `/ctx.load <search-description-from-spec>`
 
-**Example:**
-```
-Issue: "Implement OAuth2 Social Login"
-→ /ctx.load authentication oauth social login
-```
-
----
-
-## Step 6: Conduct Q&A Session
-
-**Check**: If `--no-ask` flag is present, **skip this step entirely** and proceed to Step 7.
-
----
-
-**Goal**: Ask comprehensive questions to understand the **Scope & Impact** and **Design Overview** of this change.
-
-use AskUserQuestion tool to ask questions
-
-**Present questions to the user:**
-
-```markdown
-## 📋 Planning Questions
-
-I need to understand the scope and design of this change. Please answer the following questions:
-
-### Scope & Impact
-1. **What is in-scope for this change?** (What will be implemented/modified)
-2. **What is out-of-scope for this change?** (What will NOT be addressed)
-3. **What existing code, libraries, or infrastructure can be reused?**
-4. **Which modules/files/classes/functions will be affected by this change?**
-
-### Design Overview
-5. **How will the architecture or system flow change after this implementation?** (Describe the changes)
-6. **What are the main interfaces?** (Function signatures, API specs, event/message formats)
-7. **What data model changes are needed?** (New entities, schema modifications, database changes)
-8. **Are there external systems to integrate with?**
-   - If yes: What are the request/response schemas, timeout/retry policies, auth/rate-limit requirements?
-
-### Testing Strategy
-9. **Will you write test code for this feature?**
-   [ ] Yes [ ] No
-
----
-
-Please take your time to provide detailed responses to all questions above.
-```
-
-**Wait for user response.**
-
-**Note**: Ask follow-up questions if needed to fully understand the scope and design. The goal is to have a comprehensive understanding before moving to implementation planning.
-
----
-
-## Step 7: Fill Q&A Section in {{work.plan.path}}
-
-### If `--no-ask` flag is present:
-
-**Create a minimal Q&A section** indicating that interactive Q&A was skipped:
-
-```markdown
-# Q&A
-
-_Q&A session skipped with `--no-ask` flag. Plan generated from issue description and loaded contexts._
-
-To add detailed requirements later, you can:
-1. Manually edit this section with answers to the planning questions
-2. Re-run without `--no-ask` flag for interactive planning
-
-### Planning Questions (for reference)
-1. What is in-scope for this change?
-2. What is out-of-scope for this change?
-3. What existing code, libraries, or infrastructure can be reused?
-4. Which modules/files/classes/functions will be affected?
-5. How will the architecture or system flow change?
-6. What are the main interfaces?
-7. What data model changes are needed?
-8. Are there external systems to integrate with?
-9. Will you write test code for this feature?
-```
-
-**Show confirmation:**
-```
-ℹ Skipped Q&A session (--no-ask flag)
-✓ Created {{work.plan.path}} with placeholder Q&A section
-```
-
----
-
-### If `--no-ask` flag is NOT present:
-
-**After receiving answers**, update `{{work.plan.path}}` with the actual Q&A conversation.
-
-**Record the complete Q&A exchange:**
-- Copy the questions you asked
-- Copy the user's answers verbatim
-- Include any follow-up questions and answers
-- Preserve the conversation flow
-
-**Example format:**
-```markdown
----
-issue_link: <URL>
-git_branch: <branch-name>
-created_at: <ISO-timestamp>
-status: In Progress
----
-
-# Q&A
-
-**Q: What is in-scope for this change?**
-A: [User's actual answer here...]
-
-**Q: What is out-of-scope for this change?**
-A: [User's actual answer here...]
-
-**Q: [Follow-up question if asked]**
-A: [User's actual answer here...]
-
-[... continue with all Q&A exchanges ...]
-
-# Implementation Plan
-
-<!-- To be filled next -->
-```
-
-**Show confirmation:**
-```
-✓ Updated {{work.plan.path}} with Q&A conversation
-```
+✓ Loaded contexts
 
 ---
 
 ## Step 8: Generate Implementation Plan
 
-**Goal**: Create a high-level, phase-based implementation plan.
+**Goal**: Create a high-level, phase-based implementation plan that focuses on HOW to implement the spec.
 
-### Plan Structure
-
-```markdown
-# Implementation Plan
-
-## Phase 1: <Phase-Name>
-
-### Step 1: <Step-Name>
-- [ ] <High-level task>
-- [ ] <High-level task>
-
-### Step 2: <Step-Name>
-- [ ] <High-level task>
-
-## Phase 2: <Phase-Name>
-
-### Step 1: <Step-Name>
-- [ ] <High-level task>
-
-### Step 2: <Step-Name>
-- [ ] <High-level task>
-
-## Phase 3: Testing (if applicable)
-
-### Step 1: Write Tests
-- [ ] Unit tests for <component>
-- [ ] Integration tests for <flow>
-- [ ] E2E tests for <user-journey>
-
-## Files to Modify
-- `<path/to/file.ts>` - <what needs to change>
-- `<path/to/file.ts>` - <what needs to change>
-
-## Files/Objects to Reuse
-- `<path/to/utility.ts>` - `<className>` / `<functionName>`
-- `<path/to/types.ts>` - `<InterfaceName>`, `<EnumName>`
-
-## New Files to Create
-- `<path/to/new-file.ts>` - <purpose>
-- `<path/to/new-file.ctx.md>` - Document new feature
-
-## Notes
-- <Any important considerations>
-- <Architectural patterns to follow>
-- <Dependencies to add>
-```
-
-### Plan Generation Rules
-
-1. **High-level only** - No detailed code implementation steps
-2. **Phase-based** - Group related steps into logical phases
-3. **Checkbox format** - Each task should be actionable
-4. **Include testing phase** - Only if user answered "Yes" to test question (or if `--no-ask`, include generic testing phase)
-5. **Reference Q&A** - Use Q&A responses to inform plan structure (if available)
-6. **Reference loaded contexts** - Use context knowledge to suggest patterns
-7. **If `--no-ask` mode**: Generate plan based on:
-   - Issue title and description
-   - Loaded contexts from Step 5
-   - Common patterns and best practices
-   - Keep plan more generic and template-like
-   - Add notes suggesting user should review and customize
-
-**Update {{work.plan.path}}** with generated implementation plan.
-
-**Show confirmation:**
-```
-✓ Generated implementation plan
-```
+**Check from Step 4**: If `need_plan = false`, skip to Step 9.
 
 ---
 
-## Step 9: Update Status to Reviewed
+### Plan Generation Approach
 
-**Update {{work.plan.path}} status** based on whether Q&A was conducted:
+**Use the following inputs:**
+1. **Spec from Step 6** (WHY and WHAT - requirements, scope, success criteria)
+2. **Loaded contexts from Step 7** (existing patterns, code structures, utilities)
+3. Issue metadata (labels, constraints)
+4. Optional requirements argument
+
+---
 
 ### If `--no-ask` flag is present:
 
-Set status to **"Draft"** (requires user review and refinement):
+**Auto-generate implementation plan** without user interaction:
 
-```markdown
----
-issue_link: <URL>
-git_branch: <branch-name>
-created_at: <ISO-timestamp>
-status: Draft
----
-```
+1. Analyze spec requirements
+2. Reference loaded contexts for patterns
+3. Generate phase-based plan
+4. Add note: "_Auto-generated from spec and contexts. Review and refine as needed._"
 
-**Show confirmation:**
-```
-✓ Updated status to: Draft
-ℹ Plan generated without Q&A - please review and refine as needed
-```
+ℹ Auto-generated plan (--no-ask mode)
 
 ---
 
 ### If `--no-ask` flag is NOT present:
 
-Set status to **"Reviewed"** (Q&A completed, plan ready):
+**Interactive Planning Process** - Clarify scope and reusable components:
+
+1. **Review loaded contexts** (from Step 7) - Identify reusable code:
+   - Existing utilities, functions, or patterns that can be reused
+   - Similar implementations in the codebase
+   - Shared components or libraries
+
+2. **Use AskUserQuestion tool** to clarify scope:
+   - **In-scope questions**: "Should we include [feature X] in this implementation?"
+   - **Out-of-scope questions**: "Should we defer [feature Y] to a future iteration?"
+   - **Reusability questions**: "I found [utility Z] in the codebase. Should we reuse it or implement a new approach?"
+   - **Technical approach questions**: "Approach A vs Approach B - which aligns better with project goals?"
+   - **Refactoring questions**: "Should we refactor [existing code] or work around it?"
+
+3. **Define clear boundaries**:
+   - ✅ **In-scope**: What WILL be implemented in this task
+   - ❌ **Out-of-scope**: What will NOT be implemented (and why - future work, out of bounds, etc.)
+   - ♻️ **Reusable**: What existing code/patterns will be leveraged
+
+4. **Generate implementation plan** with clarified scope and reusable components
+
+---
+
+### Implementation Plan Template
 
 ```markdown
----
-issue_link: <URL>
-git_branch: <branch-name>
-created_at: <ISO-timestamp>
-status: Reviewed
----
+# Implementation Plan
+
+## Overview
+[Brief technical approach - reference spec sections and loaded contexts]
+
+## Scope Definition
+
+### ✅ In-Scope (What we WILL implement)
+- [Feature/component to implement]
+- [Another feature to implement]
+
+### ❌ Out-of-Scope (What we will NOT implement)
+- [Feature to defer] - Reason: [future iteration/separate task]
+- [Feature to exclude] - Reason: [out of bounds/not required]
+
+### ♻️ Reusable Components
+- **`path/to/utility.ts`** - `functionName()` - [How we'll reuse it]
+- **`path/to/pattern.ts`** - [Existing pattern to follow]
+
+## Phase 1: <Phase-Name>
+### Step 1: <Step-Name>
+- [ ] <High-level task>
+
+## Phase N: Testing & Validation
+### Write Tests
+- [ ] Unit/integration/E2E tests
+
+### Validate Success Criteria
+- [ ] [Reference spec success criteria]
+
+## Technical Details
+- **Files to Modify**: `path/to/file.ts` - description
+- **Files to Reuse**: `path/to/utility.ts` - `functionName`
+- **New Files**: `path/to/new-file.ts` - purpose
+
+## Notes
+[Patterns from contexts, constraints from spec, dependencies]
 ```
 
-**Show confirmation:**
-```
-✓ Updated status to: Reviewed
-```
+### Plan Generation Rules
 
----
+1. **Reference the spec** - Link back to spec sections (scope, success criteria, constraints)
+2. **High-level only** - No detailed code implementation steps
+3. **Phase-based** - Group related steps into logical phases (2-5 steps per phase)
+4. **Checkbox format** - Each task should be actionable
+5. **Always include testing phase** - Reference success criteria from spec
+6. **Use loaded contexts** - Reference patterns, utilities, and structures from context files
+7. **Map to success criteria** - Ensure plan addresses all success criteria from spec
 
-## Step 10: Sync Plan to Issue (GitHub/Linear)
+Update `{{work.plan.path}}` with generated implementation plan.
 
-**Check**: If `--no-sync` flag is present, **skip this step entirely** and proceed to Step 11.
-
----
-
-**Goal**: Post the plan as a comment on the original issue.
-
-### GitHub Issues
-
-```bash
-gh api repos/<owner>/<repo>/issues/<number>/comments \
-  -X POST \
-  -f body="$(cat {{work.plan.path}})"
-```
-
-**Confirmation:**
-```
-✓ Plan synced to GitHub issue #<number>
-```
-
-### Linear Issues
-
-```typescript
-mcp__linear-server__create_comment({
-  issueId: "<issue-id>",
-  body: "<{{work.plan.path}}-content>"
-})
-```
-
-**Confirmation:**
-```
-✓ Plan synced to Linear issue <issue-id>
-```
-
-### Generic URLs
-
-**Show message:**
-```
-ℹ Plan created in {{work.plan.path}}
-  Cannot auto-sync to generic URLs.
-  Please manually copy {{work.plan.path}} content to the issue if needed.
-```
+✓ Implementation plan created
 
 ---
 
-## Step 11: Final Summary
+## Step 9: Final Summary
 
-**Show complete summary:**
+Show summary with:
+- Issue title, link, branch
+- Outputs: Spec (WHY/WHAT) and Implementation Plan (HOW) in `{{work.plan.path}}`
+- Loaded contexts
+- Next steps: Review, adjust, implement, validate against success criteria
 
-```markdown
----
-
-## ✅ Planning Complete
-
-**Plan Details:**
-- Issue: <issue-title>
-- Link: <issue-link>
-- Branch: <git-branch>
-- Status: Reviewed
-- File: {{work.plan.path}}
-
-**What's in the plan:**
-- ✓ Q&A responses (scope, design, testing)
-- ✓ Implementation plan (phases and steps)
-- ✓ Files to modify/create
-- ✓ Reusable resources identified
-
-**Next Steps:**
-1. Review the plan in `{{work.plan.path}}`
-2. Make any adjustments if needed
-3. Start implementation following the phases
-4. Update status to "Completed" when done
-
-**Plan synced to issue:** <yes/no>
-```
+Note: `{{work.plan.path}}` is local (gitignored) workspace.
 
 ---
 
 # Rules
 
-1. **Create todos first** - Use TodoWrite to track progress
-2. **Always get git branch first** - Include in frontmatter
-3. **Validate URL** - Must be provided and valid
-4. **Parse flags early** - Extract `--no-ask` and `--no-sync` in Step 2
-5. **Auto-detect URL type** - GitHub, Linear, or generic
-6. **Load contexts once** - Use `/ctx.load` based on issue content
-7. **Ask ALL questions at once** - Don't ask iteratively (skip if `--no-ask`)
-8. **Always ask about tests** - Include in Q&A (unless `--no-ask`)
-9. **High-level plans only** - Phases and steps, not detailed code
-10. **Include test phase conditionally** - Based on user answer or generically for `--no-ask`
-11. **Update status appropriately** - "Draft" for `--no-ask`, "Reviewed" for interactive Q&A
-12. **Sync to issue** - Post plan as comment (GitHub/Linear only, skip if `--no-sync`)
-13. **{{work.plan.path}} is local** - Not committed (gitignored)
-14. **Status progression** - In Progress → Draft/Reviewed → Completed (manual)
-15. **Flag behavior**:
-    - `--no-ask`: Skip Q&A, generate plan from issue + contexts, status = Draft
-    - `--no-sync`: Skip syncing plan back to issue platform
+1. **Create todos first** - Track progress with TodoWrite
+2. **Get git branch** - Include in plan.md frontmatter
+3. **Validate URL** - Required and must be valid format
+4. **Enhanced fetching** - Fetch comments, images, attachments from issue
+5. **Check existing content** - Search for existing spec/plan, ask user before overwriting (unless `--no-ask`)
+6. **Spec first** - Create/validate spec (WHY/WHAT) before loading contexts
+7. **Load contexts from spec** - Use spec content to inform context search
+8. **Minimal adaptive questions** - Only ask for info NOT in issue
+9. **Spec ≠ code** - Spec is WHY/WHAT, plan is HOW
+10. **High-level only** - Phases and steps, not detailed implementation
+11. **Plan.md is local** - Gitignored workspace, not synced to issue
+12. **--no-ask flag** - Auto-generate spec and plan without questions
 
 ---
-
-# Advanced Features
-
-## Multi-Phase Planning for Large Projects
-
-If issue is complex (many Q&A answers, large scope):
-- Break into multiple phases (Setup, Core Implementation, Integration, Testing, Deployment)
-- Each phase should have 2-5 steps max
-- Each step should have 2-5 tasks max
-
-## Dependency Analysis
-
-Identify dependencies between phases:
-```markdown
-## Phase Dependencies
-- Phase 2 depends on: Phase 1 (database schema must exist)
-- Phase 3 depends on: Phase 1, Phase 2 (auth + data layer ready)
-```
-
-## Risk Assessment
-
-Include a risks section if warranted:
-```markdown
-## Risks & Mitigations
-- **Risk**: Breaking changes to existing API
-  - **Mitigation**: Version API, maintain backward compatibility
-- **Risk**: Performance impact on large datasets
-  - **Mitigation**: Add pagination, implement caching
-```
 
 # Reference
 
